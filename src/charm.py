@@ -38,7 +38,7 @@ DU_F1_DEFAULT_PORT = 2153
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
-class OAIRANCUOperatorCharm(CharmBase):
+class OAIRANCUOperator(CharmBase):
     """Main class to describe Juju event handling for the OAI RAN CU operator for K8s."""
 
     def __init__(self, *args):
@@ -221,79 +221,21 @@ class OAIRANCUOperatorCharm(CharmBase):
                 DU_F1_DEFAULT_PORT
             )
             du_f1_port = DU_F1_DEFAULT_PORT
-        return self._render_config_file(
+        return _render_config_file(
             gnb_name=self._gnb_name,
             cu_f1_interface_name=self._charm_config.f1_interface_name,
-            cu_f1_ip_address=self._get_pod_ip(),
+            cu_f1_ip_address=_get_pod_ip(),
             cu_f1_port=self._charm_config.f1_port,
             du_f1_port=du_f1_port,
             cu_n2_interface_name=self._charm_config.n2_interface_name,
-            cu_n2_ip_address=self._get_pod_ip(),
+            cu_n2_ip_address=_get_pod_ip(),
             cu_n3_interface_name=self._charm_config.n3_interface_name,
-            cu_n3_ip_address=self._get_pod_ip(),
+            cu_n3_ip_address=_get_pod_ip(),
             amf_external_address=self._n2_requirer.amf_ip_address,
             mcc=self._charm_config.mcc,
             mnc=self._charm_config.mnc,
             sst=self._charm_config.sst,
             tac=self._charm_config.tac,
-        )
-
-    @staticmethod
-    def _render_config_file(
-            *,
-            gnb_name: str,
-            cu_f1_interface_name: str,
-            cu_f1_ip_address: str,
-            cu_f1_port: int,
-            du_f1_port: int,
-            cu_n2_interface_name: str,
-            cu_n2_ip_address: str,
-            cu_n3_interface_name: str,
-            cu_n3_ip_address: str,
-            amf_external_address: str,
-            mcc: str,
-            mnc: str,
-            sst: int,
-            tac: int,
-    ) -> str:
-        """Render CU config file based on parameters.
-
-        Args:
-            gnb_name: The name of the gNodeB
-            cu_f1_interface_name: Name of the network interface used for F1 traffic
-            cu_f1_ip_address: IPv4 address of the network interface used for F1 traffic
-            cu_f1_port: Number of the port used by the CU for F1 traffic
-            du_f1_port: Number of the port used by the DU for F1 traffic
-            cu_n2_interface_name: Name of the network interface used for N2 traffic
-            cu_n2_ip_address: IPv4 address of the network interface used for N2 traffic
-            cu_n3_interface_name: Name of the network interface used for N3 traffic
-            cu_n3_ip_address: IPv4 address of the network interface used for N3 traffic
-            amf_external_address: AMF hostname
-            mcc: Mobile Country Code
-            mnc: Mobile Network Code
-            sst: Slice Selection Type
-            tac: Tracking Area Code
-
-        Returns:
-            str: Rendered CU configuration file
-        """
-        jinja2_env = Environment(loader=FileSystemLoader("src/templates"))
-        template = jinja2_env.get_template("cu.conf.j2")
-        return template.render(
-            gnb_name=gnb_name,
-            cu_f1_interface_name=cu_f1_interface_name,
-            cu_f1_ip_address=cu_f1_ip_address,
-            cu_f1_port=cu_f1_port,
-            du_f1_port=du_f1_port,
-            cu_n2_interface_name=cu_n2_interface_name,
-            cu_n2_ip_address=cu_n2_ip_address,
-            cu_n3_interface_name=cu_n3_interface_name,
-            cu_n3_ip_address=cu_n3_ip_address,
-            amf_external_address=amf_external_address,
-            mcc=mcc,
-            mnc=mnc,
-            sst=sst,
-            tac=tac,
         )
 
     def _is_cu_config_up_to_date(self, content: str) -> bool:
@@ -374,7 +316,7 @@ class OAIRANCUOperatorCharm(CharmBase):
             logger.info("No %s relations found.", F1_RELATION_NAME)
             return
         self._f1_provider.set_f1_information(
-            f1_ip_address=self._get_pod_ip(), f1_port=self._charm_config.f1_port
+            f1_ip_address=_get_pod_ip(), f1_port=self._charm_config.f1_port
         )
 
     @property
@@ -421,27 +363,82 @@ class OAIRANCUOperatorCharm(CharmBase):
         the file is not present, an empty string is returned.
 
         Returns:
-            string: A human-readable string representing the
-            version of the workload
+            string: A human-readable string representing the version of the workload
         """
-        if self._container.exists(path=f"{WORKLOAD_VERSION_FILE_NAME}"):
-            version_file_content = self._container.pull(
-                path=f"{WORKLOAD_VERSION_FILE_NAME}"
-            ).read()
+        if self._container.exists(path=WORKLOAD_VERSION_FILE_NAME):
+            version_file_content = self._container.pull(path=WORKLOAD_VERSION_FILE_NAME).read()
             return version_file_content
         return ""
 
-    @staticmethod
-    def _get_pod_ip() -> str:
-        """Return the pod IP using juju client.
 
-        Returns:
-            str: The pod IP.
-        """
-        ip_address = check_output(["unit-get", "private-address"])
-        if not ip_address:
-            raise OAIRANCUError("Pod IP address not available")
-        return str(IPv4Address(ip_address.decode().strip()))
+def _render_config_file(
+    *,
+    gnb_name: str,
+    cu_f1_interface_name: str,
+    cu_f1_ip_address: str,
+    cu_f1_port: int,
+    du_f1_port: int,
+    cu_n2_interface_name: str,
+    cu_n2_ip_address: str,
+    cu_n3_interface_name: str,
+    cu_n3_ip_address: str,
+    amf_external_address: str,
+    mcc: str,
+    mnc: str,
+    sst: int,
+    tac: int,
+) -> str:
+    """Render CU config file based on parameters.
+
+    Args:
+        gnb_name: The name of the gNodeB
+        cu_f1_interface_name: Name of the network interface used for F1 traffic
+        cu_f1_ip_address: IPv4 address of the network interface used for F1 traffic
+        cu_f1_port: Number of the port used by the CU for F1 traffic
+        du_f1_port: Number of the port used by the DU for F1 traffic
+        cu_n2_interface_name: Name of the network interface used for N2 traffic
+        cu_n2_ip_address: IPv4 address of the network interface used for N2 traffic
+        cu_n3_interface_name: Name of the network interface used for N3 traffic
+        cu_n3_ip_address: IPv4 address of the network interface used for N3 traffic
+        amf_external_address: AMF hostname
+        mcc: Mobile Country Code
+        mnc: Mobile Network Code
+        sst: Slice Selection Type
+        tac: Tracking Area Code
+
+    Returns:
+        str: Rendered CU configuration file
+    """
+    jinja2_env = Environment(loader=FileSystemLoader("src/templates"))
+    template = jinja2_env.get_template("cu.conf.j2")
+    return template.render(
+        gnb_name=gnb_name,
+        cu_f1_interface_name=cu_f1_interface_name,
+        cu_f1_ip_address=cu_f1_ip_address,
+        cu_f1_port=cu_f1_port,
+        du_f1_port=du_f1_port,
+        cu_n2_interface_name=cu_n2_interface_name,
+        cu_n2_ip_address=cu_n2_ip_address,
+        cu_n3_interface_name=cu_n3_interface_name,
+        cu_n3_ip_address=cu_n3_ip_address,
+        amf_external_address=amf_external_address,
+        mcc=mcc,
+        mnc=mnc,
+        sst=sst,
+        tac=tac,
+    )
+
+
+def _get_pod_ip() -> str:
+    """Return the pod IP using juju client.
+
+    Returns:
+        str: The pod IP.
+    """
+    ip_address = check_output(["unit-get", "private-address"])
+    if not ip_address:
+        raise OAIRANCUError("Pod IP address not available")
+    return str(IPv4Address(ip_address.decode().strip()))
 
 
 class OAIRANCUError(Exception):
@@ -453,4 +450,4 @@ class OAIRANCUError(Exception):
 
 
 if __name__ == "__main__":  # pragma: nocover
-    main(OAIRANCUOperatorCharm)
+    main(OAIRANCUOperator)

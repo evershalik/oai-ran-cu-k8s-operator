@@ -5,7 +5,7 @@
 from unittest.mock import patch
 
 import pytest
-from charm import OAIRANCUOperatorCharm
+from charm import OAIRANCUOperator
 from lightkube.models.apps_v1 import StatefulSetSpec
 from lightkube.models.core_v1 import (
     Container,
@@ -45,7 +45,7 @@ class TestCharm:
 
     @pytest.fixture(autouse=True)
     def harness(self, setUp, request):
-        self.harness = testing.Harness(OAIRANCUOperatorCharm)
+        self.harness = testing.Harness(OAIRANCUOperator)
         self.harness.set_model_name(name=NAMESPACE)
         self.harness.set_leader(is_leader=True)
         self.harness.set_can_connect(container=WORKLOAD_CONTAINER_NAME, val=True)
