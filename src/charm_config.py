@@ -41,16 +41,15 @@ class CUConfig(BaseModel):  # pylint: disable=too-few-public-methods
     class Config:
         """Represent config for Pydantic model."""
         alias_generator = to_kebab
-        use_enum_values = True
 
-    f1_interface_name: StrictStr
-    f1_port: int
-    n2_interface_name: StrictStr
-    n3_interface_name: StrictStr
-    mcc: int = Field(ge=0, le=65535)
-    mnc: int = Field(ge=0, le=65535)
+    f1_interface_name: StrictStr = Field(min_length=1)
+    f1_port: int = Field(ge=1, le=65535)
+    n2_interface_name: StrictStr = Field(min_length=1)
+    n3_interface_name: StrictStr = Field(min_length=1)
+    mcc: StrictStr = Field(pattern=r"^\d{3}$")
+    mnc: StrictStr = Field(pattern=r"^\d{2}$")
     sst: int = Field(ge=1, le=4)
-    tac: int
+    tac: int = Field(ge=1, le=16777215)
 
 
 @dataclasses.dataclass
@@ -72,8 +71,8 @@ class CharmConfig:
     f1_port: int
     n2_interface_name: StrictStr
     n3_interface_name: StrictStr
-    mcc: int
-    mnc: int
+    mcc: StrictStr
+    mnc: StrictStr
     sst: int
     tac: int
 

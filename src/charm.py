@@ -48,14 +48,13 @@ class OAIRANCUOperatorCharm(CharmBase):
             return
         self._container_name = self._service_name = "cu"
         self._container = self.unit.get_container(self._container_name)
+        self._n2_requirer = N2Requires(self, N2_RELATION_NAME)
+        self._gnb_identity_provider = GnbIdentityProvides(self, GNB_IDENTITY_RELATION_NAME)
+        self._f1_provider = F1Provides(self, F1_RELATION_NAME)
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
-        self._n2_requirer = N2Requires(self, N2_RELATION_NAME)
-        self._gnb_identity_provider = GnbIdentityProvides(self, GNB_IDENTITY_RELATION_NAME)
-        self._f1_provider = F1Provides(self, F1_RELATION_NAME)
-        self.k8s_client = Client()
         self._service_patcher = KubernetesServicePatch(
             charm=self,
             ports=[
@@ -154,7 +153,8 @@ class OAIRANCUOperatorCharm(CharmBase):
 
     def _statefulset_is_patched(self) -> bool:
         try:
-            statefulset = self.k8s_client.get(
+            k8s_client = Client()
+            statefulset = k8s_client.get(
                 res=StatefulSet,
                 name=self.model.app.name,
                 namespace=self.model.name,
@@ -177,7 +177,8 @@ class OAIRANCUOperatorCharm(CharmBase):
 
     def _patch_statefulset(self) -> None:
         try:
-            statefulset = self.k8s_client.get(
+            k8s_client = Client()
+            statefulset = k8s_client.get(
                 res=StatefulSet,
                 name=self.model.app.name,
                 namespace=self.model.name,
@@ -191,7 +192,7 @@ class OAIRANCUOperatorCharm(CharmBase):
                 )
             )
             container.securityContext.privileged = True
-            self.k8s_client.replace(obj=statefulset)
+            k8s_client.replace(obj=statefulset)
             logger.info("Container %s patched", self._container_name)
         except ApiError:
             raise OAIRANCUError(f"Could not get statefulset {self.model.app.name}")
@@ -248,8 +249,8 @@ class OAIRANCUOperatorCharm(CharmBase):
             cu_n3_interface_name: str,
             cu_n3_ip_address: str,
             amf_external_address: str,
-            mcc: int,
-            mnc: int,
+            mcc: str,
+            mnc: str,
             sst: int,
             tac: int,
     ) -> str:

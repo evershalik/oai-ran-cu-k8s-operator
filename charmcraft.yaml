@@ -50,26 +50,26 @@ config:
     f1-interface-name:
       type: string
       default: "eth0"
-      description: ""
+      description: Name of the network interface handling communication over the F1 interface.
     f1-port:
       type: int
       default: 2153
-      description: ""
+      description: Number of the port handling communication over the F1 interface.
     n2-interface-name:
       type: string
       default: "eth0"
-      description: ""
+      description: Name of the network interface handling communication over the N2 interface.
     n3-interface-name:
       type: string
       default: "eth0"
-      description: ""
+      description: Name of the network interface handling communication over the N3 interface."
     mcc:
       type: string
-      default: "208"
+      default: "001"
       description: Mobile Country Code
     mnc:
       type: string
-      default: "93"
+      default: "01"
       description: Mobile Network code
     sst:
       type: int
