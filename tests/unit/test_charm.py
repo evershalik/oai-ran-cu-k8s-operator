@@ -56,6 +56,7 @@ class TestCharm:
 
     def test_given_unit_is_not_leader_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=False)
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
@@ -89,6 +90,7 @@ class TestCharm:
 
     def test_given_n2_relation_not_created_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=True)
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
@@ -101,6 +103,7 @@ class TestCharm:
     ):
         self.create_n2_relation()
         self.harness.set_can_connect(container=WORKLOAD_CONTAINER_NAME, val=False)
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
@@ -127,6 +130,7 @@ class TestCharm:
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
         self.create_n2_relation()
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
@@ -153,6 +157,7 @@ class TestCharm:
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
         self.create_n2_relation()
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
@@ -182,6 +187,7 @@ class TestCharm:
         self.mock_lightkube_client_get.return_value = test_statefulset
         self.harness.add_storage("config", attach=True)
         self.create_n2_relation()
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
@@ -208,10 +214,129 @@ class TestCharm:
         self.mock_check_output.return_value = b'1.1.1.1'
         self.harness.add_storage("config", attach=True)
         self.set_n2_relation_data()
+
         self.harness.update_config(key_values={})
         self.harness.evaluate_status()
 
         assert self.harness.charm.unit.status == ActiveStatus()
+
+    def test_given_cu_charm_when_install_then_statefulset_is_patched(self):
+        test_statefulset = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=LabelSelector(),
+                serviceName="whatever",
+                template=PodTemplateSpec(
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=WORKLOAD_CONTAINER_NAME,
+                                securityContext=SecurityContext(privileged=False),
+                            )
+                        ]
+                    )
+                ),
+            )
+        )
+        expected_statefulset = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=LabelSelector(),
+                serviceName="whatever",
+                template=PodTemplateSpec(
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=WORKLOAD_CONTAINER_NAME,
+                                securityContext=SecurityContext(privileged=True),
+                            )
+                        ]
+                    )
+                ),
+            )
+        )
+        self.mock_lightkube_client_get.return_value = test_statefulset
+
+        self.harness.charm.on.install.emit()
+
+        self.mock_lightkube_client_replace.assert_called_once_with(obj=expected_statefulset)
+
+    def test_given_statefulset_is_patched_when_config_changed_then_statefulset_is_not_patched(
+        self
+    ):
+        self.prepare_workload_for_configuration()
+
+        self.harness.update_config(key_values={})
+        self.harness.evaluate_status()
+
+        self.mock_lightkube_client_replace.assert_not_called()
+
+    def test_given_workload_is_ready_to_be_configured_when_config_changed_then_cu_config_file_is_generated_and_pushed_to_the_workload_container(  # noqa: E501
+        self,
+    ):
+        root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
+        self.prepare_workload_for_configuration()
+
+        self.harness.update_config(key_values={})
+
+        with open("tests/unit/resources/expected_config.conf") as expected_config_file:
+            expected_config = expected_config_file.read()
+        assert (root / "tmp/conf/cu.conf").read_text() == expected_config.strip()
+
+    def test_given_cu_config_file_is_up_to_date_when_config_changed_then_cu_config_file_is_not_pushed_to_the_workload_container(  # noqa: E501
+        self,
+    ):
+        self.prepare_workload_for_configuration()
+        root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
+        (root / "tmp/conf/cu.conf").write_text(
+            self._read_file("tests/unit/resources/expected_config.conf").strip()
+        )
+        config_modification_time = (root / "tmp/conf/cu.conf").stat().st_mtime
+
+        self.harness.update_config(key_values={})
+
+        assert (root / "tmp/conf/cu.conf").stat().st_mtime == config_modification_time
+
+    def test_given_charm_configuration_is_done_when_config_changed_then_pebble_layer_is_created(
+        self,
+    ):
+        expected_pebble_plan = {
+            "services": {
+                "cu": {
+                    "override": "replace",
+                    "startup": "enabled",
+                    "command": "/opt/oai-gnb/bin/nr-softmodem -O /tmp/conf/cu.conf --sa --log_config.global_log_options level,nocolor,time",  # noqa: E501
+                    "environment": {
+                        "OAI_GDBSTACKS": "1",
+                        "TZ": "UTC",
+                    },
+                },
+            },
+        }
+        self.prepare_workload_for_configuration()
+        root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
+        (root / "tmp/conf/cu.conf").write_text(
+            self._read_file("tests/unit/resources/expected_config.conf").strip()
+        )
+
+        self.harness.update_config(key_values={})
+
+        updated_plan = self.harness.get_container_pebble_plan(WORKLOAD_CONTAINER_NAME).to_dict()
+        assert expected_pebble_plan == updated_plan
+
+    def test_given_charm_is_configured_and_running_when__fiveg_gnb_identity_relation_is_added_then_default_tac_is_published(  # noqa: E501
+        self,
+    ):
+        self.prepare_workload_for_configuration()
+        root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
+        (root / "tmp/conf/cu.conf").write_text(
+            self._read_file("tests/unit/resources/expected_config.conf").strip()
+        )
+
+        relation_id = self.harness.add_relation("fiveg_gnb_identity", "gnb_identity_requirer_app")
+        self.harness.add_relation_unit(relation_id, "gnb_identity_requirer_app/0")
+
+        self.mock_gnb_identity.assert_called_once_with(
+            relation_id=relation_id, gnb_name=f"{NAMESPACE}-{self.harness.charm.app.name}", tac=1
+        )
 
     def create_n2_relation(self) -> int:
         """Create a relation between the CU and the AMF.
@@ -236,7 +361,43 @@ class TestCharm:
             key_values={
                 "amf_hostname": "amf",
                 "amf_port": "38412",
-                "amf_ip_address": "1.1.1.1",
+                "amf_ip_address": "1.2.3.4",
             },
         )
         return amf_relation_id
+
+    def prepare_workload_for_configuration(self):
+        test_statefulset = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=LabelSelector(),
+                serviceName="whatever",
+                template=PodTemplateSpec(
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=WORKLOAD_CONTAINER_NAME,
+                                securityContext=SecurityContext(privileged=True),
+                            )
+                        ]
+                    )
+                ),
+            )
+        )
+        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_check_output.return_value = b'1.1.1.1'
+        self.harness.add_storage("config", attach=True)
+        self.set_n2_relation_data()
+
+    @staticmethod
+    def _read_file(path: str) -> str:
+        """Read a file and returns as a string.
+
+        Args:
+            path (str): path to the file.
+
+        Returns:
+            str: content of the file.
+        """
+        with open(path, "r") as f:
+            content = f.read()
+        return content

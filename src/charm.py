@@ -70,11 +70,12 @@ class OAIRANCUOperatorCharm(CharmBase):
         self.framework.observe(self.on.cu_pebble_ready, self._configure)
         self.framework.observe(self.on.fiveg_n2_relation_joined, self._configure)
         self.framework.observe(self._n2_requirer.on.n2_information_available, self._configure)
+        self.framework.observe(self._f1_provider.on.fiveg_f1_request, self._configure)
+        self.framework.observe(self._f1_provider.on.fiveg_f1_requirer_available, self._configure)
         self.framework.observe(
             self._gnb_identity_provider.on.fiveg_gnb_identity_request,
             self._configure,
         )
-        self.framework.observe(self._f1_provider.on.f1_requirer_available, self._configure)
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):
         """Check the unit status and set to Unit when CollectStatusEvent is fired.
@@ -149,6 +150,7 @@ class OAIRANCUOperatorCharm(CharmBase):
         service_restart_required = config_update_required
         self._configure_pebble(restart=service_restart_required)
 
+        self._update_fiveg_f1_relation_data()
         self._update_fiveg_gnb_identity_relation_data()
 
     def _statefulset_is_patched(self) -> bool:
@@ -163,7 +165,7 @@ class OAIRANCUOperatorCharm(CharmBase):
                 iter(
                     filter(
                         lambda ctr: ctr.name == self._container_name,
-                        statefulset.spec.template.spec.containers,
+                        statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
                     )
                 )
             )
@@ -187,7 +189,7 @@ class OAIRANCUOperatorCharm(CharmBase):
                 iter(
                     filter(
                         lambda ctr: ctr.name == self._container_name,
-                        statefulset.spec.template.spec.containers,
+                        statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
                     )
                 )
             )
