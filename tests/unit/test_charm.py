@@ -220,7 +220,9 @@ class TestCharm:
 
         assert self.harness.charm.unit.status == ActiveStatus()
 
-    def test_given_cu_charm_when_install_then_statefulset_is_patched(self):
+    def test_given_statefulset_is_not_patched_when_config_changed_then_statefulset_is_patched(
+        self,
+    ):
         test_statefulset = StatefulSet(
             spec=StatefulSetSpec(
                 selector=LabelSelector(),
@@ -254,8 +256,12 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_check_output.return_value = b'1.1.1.1'
+        self.harness.add_storage("config", attach=True)
+        self.set_n2_relation_data()
 
-        self.harness.charm.on.install.emit()
+        self.harness.update_config(key_values={})
+        self.harness.evaluate_status()
 
         self.mock_lightkube_client_replace.assert_called_once_with(obj=expected_statefulset)
 

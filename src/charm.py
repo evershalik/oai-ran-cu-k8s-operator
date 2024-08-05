@@ -18,10 +18,8 @@ from charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity import (  # type: ignore[imp
     GnbIdentityProvides,
 )
 from jinja2 import Environment, FileSystemLoader
-from lightkube import Client
-from lightkube.core.exceptions import ApiError
+from k8s_privileged import K8sPrivileged
 from lightkube.models.core_v1 import ServicePort
-from lightkube.resources.apps_v1 import StatefulSet
 from ops import ActiveStatus, BlockedStatus, CollectStatusEvent, WaitingStatus
 from ops.charm import CharmBase
 from ops.main import main
@@ -51,6 +49,9 @@ class OAIRANCUOperator(CharmBase):
         self._n2_requirer = N2Requires(self, N2_RELATION_NAME)
         self._gnb_identity_provider = GnbIdentityProvides(self, GNB_IDENTITY_RELATION_NAME)
         self._f1_provider = F1Provides(self, F1_RELATION_NAME)
+        self._k8s_privileged = K8sPrivileged(
+            namespace=self.model.name, statefulset_name=self.app.name
+        )
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
@@ -64,7 +65,6 @@ class OAIRANCUOperator(CharmBase):
             ],
         )
 
-        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.update_status, self._configure)
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.cu_pebble_ready, self._configure)
@@ -106,7 +106,7 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(WaitingStatus("Waiting for container to be ready"))
             logger.info("Waiting for container to be ready")
             return
-        if not self._statefulset_is_patched():
+        if not self._k8s_privileged.is_patched(container_name=self._container_name):
             event.add_status(WaitingStatus("Waiting for statefulset to be patched"))
             logger.info("Waiting for statefulset to be patched")
             return
@@ -120,13 +120,6 @@ class OAIRANCUOperator(CharmBase):
             logger.info("Waiting for N2 information")
             return
         event.add_status(ActiveStatus())
-
-    def _on_install(self, _) -> None:
-        """Patch the CU statefulset.
-
-        To work properly, the CU container needs to be run in the privileged security context.
-        """
-        self._patch_statefulset()
 
     def _configure(self, _) -> None:
         try:
@@ -142,8 +135,8 @@ class OAIRANCUOperator(CharmBase):
         if not self._n2_requirer.amf_hostname:
             return
 
-        if not self._statefulset_is_patched():
-            self._patch_statefulset()
+        if not self._k8s_privileged.is_patched(container_name=self._container_name):
+            self._k8s_privileged.patch_statefulset(container_name=self._container_name)
         cu_config = self._generate_cu_config()
         if config_update_required := self._is_cu_config_up_to_date(cu_config):
             self._write_config_file(content=cu_config)
@@ -152,54 +145,6 @@ class OAIRANCUOperator(CharmBase):
 
         self._update_fiveg_f1_relation_data()
         self._update_fiveg_gnb_identity_relation_data()
-
-    def _statefulset_is_patched(self) -> bool:
-        try:
-            k8s_client = Client()
-            statefulset = k8s_client.get(
-                res=StatefulSet,
-                name=self.model.app.name,
-                namespace=self.model.name,
-            )
-            container = next(
-                iter(
-                    filter(
-                        lambda ctr: ctr.name == self._container_name,
-                        statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
-                    )
-                )
-            )
-            if not container.securityContext.privileged:
-                return False
-        except ApiError:
-            raise OAIRANCUError(f"Could not get statefulset {self.model.app.name}")
-        except StopIteration:
-            raise OAIRANCUError(f"Could not get container {self._container_name}")
-        return True
-
-    def _patch_statefulset(self) -> None:
-        try:
-            k8s_client = Client()
-            statefulset = k8s_client.get(
-                res=StatefulSet,
-                name=self.model.app.name,
-                namespace=self.model.name,
-            )
-            container = next(
-                iter(
-                    filter(
-                        lambda ctr: ctr.name == self._container_name,
-                        statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
-                    )
-                )
-            )
-            container.securityContext.privileged = True
-            k8s_client.replace(obj=statefulset)
-            logger.info("Container %s patched", self._container_name)
-        except ApiError:
-            raise OAIRANCUError(f"Could not get statefulset {self.model.app.name}")
-        except StopIteration:
-            raise OAIRANCUError(f"Could not get container {self._container_name}")
 
     def _relation_created(self, relation_name: str) -> bool:
         """Return whether a given Juju relation was created.
