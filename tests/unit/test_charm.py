@@ -309,7 +309,7 @@ class TestCharm:
                 "cu": {
                     "override": "replace",
                     "startup": "enabled",
-                    "command": "/opt/oai-gnb/bin/nr-softmodem -O /tmp/conf/cu.conf --sa --log_config.global_log_options level,nocolor,time",  # noqa: E501
+                    "command": "/opt/oai-gnb/bin/nr-softmodem -O /tmp/conf/cu.conf --sa",
                     "environment": {
                         "OAI_GDBSTACKS": "1",
                         "TZ": "UTC",
