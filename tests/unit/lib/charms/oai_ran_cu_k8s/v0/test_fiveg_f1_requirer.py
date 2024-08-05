@@ -4,6 +4,7 @@
 from unittest.mock import PropertyMock, call, patch
 
 import pytest
+from charms.oai_ran_cu_k8s.v0.fiveg_f1 import FivegF1Error
 from ops import BoundEvent, testing
 from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
@@ -99,15 +100,13 @@ class TestFivegF1Requires:
 
         assert str(test_f1_port) == relation_data["f1_port"]
 
-    def test_given_invalid_f1_port_when_fiveg_f1_provider_available_then_value_error_is_raised(
-        self,
-    ):
+    def test_given_invalid_f1_port_when_fiveg_f1_provider_available_then_error_is_raised(self):
         test_f1_port = "Not a valid port"
         test_provider_f1_ip_address = "123.123.123.123"
         test_provider_f1_port = 4321
         self.mock_f1_port.return_value = test_f1_port
 
-        with pytest.raises(ValueError):
+        with pytest.raises(FivegF1Error):
             relation_id = self.harness.add_relation(
                 relation_name=RELATION_NAME, remote_app="whatever-app"
             )

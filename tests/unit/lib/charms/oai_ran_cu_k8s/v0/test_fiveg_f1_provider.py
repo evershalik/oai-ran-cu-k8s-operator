@@ -4,6 +4,7 @@
 from unittest.mock import PropertyMock, call, patch
 
 import pytest
+from charms.oai_ran_cu_k8s.v0.fiveg_f1 import FivegF1Error
 from ops import BoundEvent, testing
 from test_charms.test_provider_charm.src.charm import WhateverCharm  # type: ignore[import]
 
@@ -63,29 +64,25 @@ class TestFivegF1Provides:
         assert test_f1_ip_address == relation_data["f1_ip_address"]
         assert str(test_f1_port) == relation_data["f1_port"]
 
-    def test_given_invalid_f1_ip_address_when_fiveg_f1_relation_joined_then_value_error_is_raised(
-        self,
-    ):
+    def test_given_invalid_f1_ip_address_when_fiveg_f1_relation_joined_then_error_is_raised(self):
         test_f1_ip_address = "555.555.555.555"
         test_f1_port = 1234
         self.mock_f1_ip_address.return_value = test_f1_ip_address
         self.mock_f1_port.return_value = test_f1_port
 
-        with pytest.raises(ValueError):
+        with pytest.raises(FivegF1Error):
             relation_id = self.harness.add_relation(
                 relation_name=RELATION_NAME, remote_app="whatever-app"
             )
             self.harness.add_relation_unit(relation_id, "whatever-app/0")
 
-    def test_given_invalid_f1_port_when_fiveg_f1_relation_joined_then_value_error_is_raised(
-        self,
-    ):
+    def test_given_invalid_f1_port_when_fiveg_f1_relation_joined_then_error_is_raised(self):
         test_f1_ip_address = "123.123.123.123"
         test_f1_port = "that's wrong"
         self.mock_f1_ip_address.return_value = test_f1_ip_address
         self.mock_f1_port.return_value = test_f1_port
 
-        with pytest.raises(ValueError):
+        with pytest.raises(FivegF1Error):
             relation_id = self.harness.add_relation(
                 relation_name=RELATION_NAME, remote_app="whatever-app"
             )

@@ -261,7 +261,7 @@ class OAIRANCUOperator(CharmBase):
             logger.info("No %s relations found.", F1_RELATION_NAME)
             return
         self._f1_provider.set_f1_information(
-            f1_ip_address=_get_pod_ip(), f1_port=self._charm_config.f1_port
+            ip_address=_get_pod_ip(), port=self._charm_config.f1_port
         )
 
     @property

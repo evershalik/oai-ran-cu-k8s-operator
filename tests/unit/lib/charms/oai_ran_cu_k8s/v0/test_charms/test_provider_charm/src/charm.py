@@ -30,7 +30,7 @@ class WhateverCharm(CharmBase):
 
     def _on_fiveg_f1_request(self, _):
         self.fiveg_f1_provider.set_f1_information(
-            f1_ip_address=self.TEST_F1_IP_ADDRESS, f1_port=self.TEST_F1_PORT
+            ip_address=self.TEST_F1_IP_ADDRESS, port=self.TEST_F1_PORT
         )
 
     def _on_fiveg_f1_requirer_available(self, _):

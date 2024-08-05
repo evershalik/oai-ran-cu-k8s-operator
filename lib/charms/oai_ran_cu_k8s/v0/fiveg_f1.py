@@ -49,8 +49,8 @@ class DummyFivegF1ProviderCharm(CharmBase):
     def _on_fiveg_f1_relation_joined(self, event: RelationJoinedEvent):
         if self.unit.is_leader():
             self.f1_provider.set_f1_information(
-                f1_ip_address=self.IP_ADDRESS,
-                f1_port=self.PORT,
+                ip_address=self.IP_ADDRESS,
+                port=self.PORT,
             )
 
 
@@ -68,7 +68,7 @@ Example:
 from ops.charm import CharmBase
 from ops.main import main
 
-from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1InformationAvailableEvent, F1Requires
+from charms.oai_ran_cu_k8s.v0.fiveg_f1 import FivegF1ProviderAvailableEvent, F1Requires
 
 logger = logging.getLogger(__name__)
 
@@ -84,14 +84,14 @@ class DummyFivegF1Requires(CharmBase):
             self.on.fiveg_f1_relation_joined, self._on_fiveg_f1_relation_joined
         )
         self.framework.observe(
-            self.f1_requirer.on.f1_information_available, self._on_f1_information_available
+            self.f1_requirer.on.fiveg_f1_provider_available, self._on_f1_information_available
         )
 
     def _on_fiveg_f1_relation_joined(self, event: RelationJoinedEvent):
         if self.unit.is_leader():
-            self.f1_requirer.set_f1_information(f1_port=self.PORT)
+            self.f1_requirer.set_f1_information(port=self.PORT)
 
-    def _on_f1_information_available(self, event: F1InformationAvailableEvent):
+    def _on_f1_information_available(self, event: FivegF1ProviderAvailableEvent):
         provider_f1_ip_address = event.f1_ip_address
         provider_f1_port = event.f1_port
         <do something with the IP and port>
@@ -301,6 +301,14 @@ class FivegF1RequirerCharmEvents(CharmEvents):
     fiveg_f1_provider_available = EventSource(FivegF1ProviderAvailableEvent)
 
 
+class FivegF1Error(Exception):
+    """Custom error class for the `fiveg_f1` library."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(self.message)
+
+
 class F1Provides(Object):
     """Class to be instantiated by the charm providing relation using the `fiveg_f1` interface."""
 
@@ -331,25 +339,25 @@ class F1Provides(Object):
         if remote_app_relation_data := self._get_remote_app_relation_data(event.relation):
             self.on.fiveg_f1_requirer_available.emit(f1_port=remote_app_relation_data["f1_port"])
 
-    def set_f1_information(self, f1_ip_address: str, f1_port: int) -> None:
+    def set_f1_information(self, ip_address: str, port: int) -> None:
         """Push the information about the F1 interface in the application relation data.
 
         Args:
-            f1_ip_address (str): IPv4 address of the network interface used for F1 traffic.
-            f1_port (int): Number of the port used for F1 traffic.
+            ip_address (str): IPv4 address of the network interface used for F1 traffic.
+            port (int): Number of the port used for F1 traffic.
         """
         if not self.charm.unit.is_leader():
-            raise RuntimeError("Unit must be leader to set application relation data.")
+            raise FivegF1Error("Unit must be leader to set application relation data.")
         relations = self.model.relations[self.relation_name]
         if not relations:
-            raise RuntimeError(f"Relation {self.relation_name} not created yet.")
-        if not provider_data_is_valid({"f1_ip_address": f1_ip_address, "f1_port": f1_port}):
-            raise ValueError("Invalid relation data")
+            raise FivegF1Error(f"Relation {self.relation_name} not created yet.")
+        if not provider_data_is_valid({"f1_ip_address": ip_address, "f1_port": port}):
+            raise FivegF1Error("Invalid relation data")
         for relation in relations:
             relation.data[self.charm.app].update(
                 {
-                    "f1_ip_address": f1_ip_address,
-                    "f1_port": str(f1_port),
+                    "f1_ip_address": ip_address,
+                    "f1_port": str(port),
                 }
             )
 
@@ -413,21 +421,21 @@ class F1Requires(Object):
                 f1_port=remote_app_relation_data["f1_port"],
             )
 
-    def set_f1_information(self, f1_port: int) -> None:
+    def set_f1_information(self, port: int) -> None:
         """Push the information about the F1 interface in the application relation data.
 
         Args:
-            f1_port (int): Number of the port used for F1 traffic.
+            port (int): Number of the port used for F1 traffic.
         """
         if not self.charm.unit.is_leader():
-            raise RuntimeError("Unit must be leader to set application relation data.")
+            raise FivegF1Error("Unit must be leader to set application relation data.")
         relations = self.model.relations[self.relation_name]
         if not relations:
-            raise RuntimeError(f"Relation {self.relation_name} not created yet.")
-        if not requirer_data_is_valid({"f1_port": f1_port}):
-            raise ValueError("Invalid relation data")
+            raise FivegF1Error(f"Relation {self.relation_name} not created yet.")
+        if not requirer_data_is_valid({"f1_port": port}):
+            raise FivegF1Error("Invalid relation data")
         for relation in relations:
-            relation.data[self.charm.app].update({"f1_port": str(f1_port)})
+            relation.data[self.charm.app].update({"f1_port": str(port)})
 
     @property
     def f1_ip_address(self) -> Optional[str]:

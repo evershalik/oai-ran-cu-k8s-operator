@@ -25,7 +25,7 @@ class WhateverCharm(CharmBase):
         )
 
     def _on_fiveg_f1_provider_available(self, _):
-        self.fiveg_f1_requirer.set_f1_information(f1_port=self.TEST_F1_PORT)
+        self.fiveg_f1_requirer.set_f1_information(port=self.TEST_F1_PORT)
         self.model.unit.status = ActiveStatus()
 
 
