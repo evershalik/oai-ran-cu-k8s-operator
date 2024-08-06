@@ -24,7 +24,11 @@ class K8sPrivilegedError(Exception):
 class K8sPrivileged:
     """Class used to update Kubernetes Statefulset to run containers in privileged context."""
 
-    def __init__(self, namespace: str, statefulset_name: str, ):
+    def __init__(
+        self,
+        namespace: str,
+        statefulset_name: str,
+    ):
         self.k8s_client = Client()
         self.statefulset_name = statefulset_name
         self.namespace = namespace

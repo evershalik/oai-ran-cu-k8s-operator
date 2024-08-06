@@ -9,12 +9,8 @@ from ops import BoundEvent, testing
 from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
 TEST_CHARM_PATH = "test_charms.test_requirer_charm.src.charm.WhateverCharm"
-FIVEG_F1_REQUIRER_EVENTS_PATH = (
-    "charms.oai_ran_cu_k8s.v0.fiveg_f1.FivegF1RequirerCharmEvents"
-)
-FIVEG_F1_REQUIRES_PATH = (
-    "charms.oai_ran_cu_k8s.v0.fiveg_f1.F1Requires"
-)
+FIVEG_F1_REQUIRER_EVENTS_PATH = "charms.oai_ran_cu_k8s.v0.fiveg_f1.FivegF1RequirerCharmEvents"
+FIVEG_F1_REQUIRES_PATH = "charms.oai_ran_cu_k8s.v0.fiveg_f1.F1Requires"
 RELATION_NAME = "fiveg_f1"
 
 

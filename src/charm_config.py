@@ -40,6 +40,7 @@ class CUConfig(BaseModel):  # pylint: disable=too-few-public-methods
 
     class Config:
         """Represent config for Pydantic model."""
+
         alias_generator = to_kebab
 
     f1_interface_name: StrictStr = Field(min_length=1)

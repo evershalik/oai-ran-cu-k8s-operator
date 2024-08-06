@@ -75,7 +75,6 @@ class TestCharm:
             pytest.param("mnc", "", id="empty_mnc"),
             pytest.param("sst", int(), id="empty_sst"),
             pytest.param("tac", int(), id="empty_tac"),
-
         ],
     )
     def test_given_invalid_config_when_config_changed_then_status_is_blocked(
@@ -211,7 +210,7 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
-        self.mock_check_output.return_value = b'1.1.1.1'
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.harness.add_storage("config", attach=True)
         self.set_n2_relation_data()
 
@@ -256,7 +255,7 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
-        self.mock_check_output.return_value = b'1.1.1.1'
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.harness.add_storage("config", attach=True)
         self.set_n2_relation_data()
 
@@ -266,7 +265,7 @@ class TestCharm:
         self.mock_lightkube_client_replace.assert_called_once_with(obj=expected_statefulset)
 
     def test_given_statefulset_is_patched_when_config_changed_then_statefulset_is_not_patched(
-        self
+        self,
     ):
         self.prepare_workload_for_configuration()
 
@@ -390,7 +389,7 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
-        self.mock_check_output.return_value = b'1.1.1.1'
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.harness.add_storage("config", attach=True)
         self.set_n2_relation_data()
 

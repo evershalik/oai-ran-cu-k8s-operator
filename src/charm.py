@@ -162,8 +162,7 @@ class OAIRANCUOperator(CharmBase):
             du_f1_port = self._f1_provider.requirer_f1_port
         else:
             logger.info(
-                "DU F1 port information not available. Using default value %s",
-                DU_F1_DEFAULT_PORT
+                "DU F1 port information not available. Using default value %s", DU_F1_DEFAULT_PORT
             )
             du_f1_port = DU_F1_DEFAULT_PORT
         return _render_config_file(
@@ -193,7 +192,7 @@ class OAIRANCUOperator(CharmBase):
             True if config update is required else False
         """
         if not self._config_file_is_written() or not self._config_file_content_matches(
-                content=content
+            content=content
         ):
             return True
         return False
@@ -221,9 +220,7 @@ class OAIRANCUOperator(CharmBase):
         """
         plan = self._container.get_plan()
         if plan.services != self._cu_pebble_layer.services:
-            self._container.add_layer(
-                self._container_name, self._cu_pebble_layer, combine=True
-            )
+            self._container.add_layer(self._container_name, self._cu_pebble_layer, combine=True)
             self._container.replan()
             logger.info("New layer added: %s", self._cu_pebble_layer)
         if restart:
