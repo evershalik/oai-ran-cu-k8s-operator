@@ -327,7 +327,7 @@ class TestCharm:
         updated_plan = self.harness.get_container_pebble_plan(WORKLOAD_CONTAINER_NAME).to_dict()
         assert expected_pebble_plan == updated_plan
 
-    def test_given_charm_is_configured_and_running_when__fiveg_gnb_identity_relation_is_added_then_default_tac_is_published(  # noqa: E501
+    def test_given_charm_is_configured_and_running_when_fiveg_gnb_identity_relation_is_added_then_default_tac_is_published(  # noqa: E501
         self,
     ):
         self.prepare_workload_for_configuration()
@@ -340,7 +340,9 @@ class TestCharm:
         self.harness.add_relation_unit(relation_id, "gnb_identity_requirer_app/0")
 
         self.mock_gnb_identity.assert_called_once_with(
-            relation_id=relation_id, gnb_name=f"{NAMESPACE}-{self.harness.charm.app.name}", tac=1
+            relation_id=relation_id,
+            gnb_name=f"{NAMESPACE}-{self.harness.charm.app.name}-cu",
+            tac=1,
         )
 
     def create_n2_relation(self) -> int:

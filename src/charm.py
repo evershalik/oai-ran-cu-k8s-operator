@@ -268,7 +268,7 @@ class OAIRANCUOperator(CharmBase):
         Returns:
             str: the gNB's name.
         """
-        return f"{self.model.name}-{self.app.name}"
+        return f"{self.model.name}-{self.app.name}-cu"
 
     @property
     def _cu_pebble_layer(self) -> Layer:
