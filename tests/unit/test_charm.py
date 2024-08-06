@@ -108,6 +108,19 @@ class TestCharm:
 
         assert self.harness.charm.unit.status == WaitingStatus("Waiting for container to be ready")
 
+    def test_given_pod_ip_is_not_available_when_config_changed_then_status_is_waiting(  # noqa: E501
+        self,
+    ):
+        self.mock_check_output.return_value = b""
+        self.create_n2_relation()
+
+        self.harness.update_config(key_values={})
+        self.harness.evaluate_status()
+
+        assert self.harness.charm.unit.status == WaitingStatus(
+            "Waiting for Pod IP address to be available"
+        )
+
     def test_given_charm_statefulset_is_not_patched_when_config_changed_then_status_is_waiting(
         self,
     ):
@@ -128,6 +141,7 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.create_n2_relation()
 
         self.harness.update_config(key_values={})
@@ -155,6 +169,7 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.create_n2_relation()
 
         self.harness.update_config(key_values={})
@@ -184,6 +199,7 @@ class TestCharm:
             )
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.harness.add_storage("config", attach=True)
         self.create_n2_relation()
 

@@ -49,11 +49,9 @@ class K8sPrivileged:
                 namespace=self.namespace,
             )
             container = next(
-                iter(
-                    filter(
-                        lambda ctr: ctr.name == container_name,
-                        statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
-                    )
+                filter(
+                    lambda ctr: ctr.name == container_name,
+                    statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
                 )
             )
             if not container.securityContext.privileged:
@@ -77,11 +75,9 @@ class K8sPrivileged:
                 namespace=self.namespace,
             )
             container = next(
-                iter(
-                    filter(
-                        lambda ctr: ctr.name == container_name,
-                        statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
-                    )
+                filter(
+                    lambda ctr: ctr.name == container_name,
+                    statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
                 )
             )
             container.securityContext.privileged = True

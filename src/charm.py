@@ -106,6 +106,10 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(WaitingStatus("Waiting for container to be ready"))
             logger.info("Waiting for container to be ready")
             return
+        if not _get_pod_ip():
+            event.add_status(WaitingStatus("Waiting for Pod IP address to be available"))
+            logger.info("Waiting for Pod IP address to be available")
+            return
         if not self._k8s_privileged.is_patched(container_name=self._container_name):
             event.add_status(WaitingStatus("Waiting for statefulset to be patched"))
             logger.info("Waiting for statefulset to be patched")
@@ -132,6 +136,8 @@ class OAIRANCUOperator(CharmBase):
             return
         if not self._container.exists(path=BASE_CONFIG_PATH):
             return
+        if not _get_pod_ip():
+            return
         if not self._n2_requirer.amf_hostname:
             return
 
@@ -155,7 +161,7 @@ class OAIRANCUOperator(CharmBase):
         Returns:
             bool: Whether the relation was created.
         """
-        return bool(self.model.relations[relation_name])
+        return bool(self.model.relations.get(relation_name))
 
     def _generate_cu_config(self) -> str:
         if self._f1_provider.requirer_f1_port:
@@ -272,7 +278,7 @@ class OAIRANCUOperator(CharmBase):
 
     @property
     def _cu_pebble_layer(self) -> Layer:
-        """Return pebble layer for the amf container.
+        """Return pebble layer for the cu container.
 
         Returns:
             Layer: Pebble Layer
@@ -378,17 +384,7 @@ def _get_pod_ip() -> str:
         str: The pod IP.
     """
     ip_address = check_output(["unit-get", "private-address"])
-    if not ip_address:
-        raise OAIRANCUError("Pod IP address not available")
-    return str(IPv4Address(ip_address.decode().strip()))
-
-
-class OAIRANCUError(Exception):
-    """OAIRANCUError."""
-
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(self.message)
+    return str(IPv4Address(ip_address.decode().strip())) if ip_address else None
 
 
 if __name__ == "__main__":  # pragma: nocover
