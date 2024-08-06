@@ -7,6 +7,7 @@
 import logging
 from ipaddress import IPv4Address
 from subprocess import check_output
+from typing import Optional
 
 from charm_config import CharmConfig, CharmConfigInvalidError
 from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides  # type: ignore[import]
@@ -174,13 +175,13 @@ class OAIRANCUOperator(CharmBase):
         return _render_config_file(
             gnb_name=self._gnb_name,
             cu_f1_interface_name=self._charm_config.f1_interface_name,
-            cu_f1_ip_address=_get_pod_ip(),
+            cu_f1_ip_address=_get_pod_ip(),  # type: ignore[arg-type]
             cu_f1_port=self._charm_config.f1_port,
             du_f1_port=du_f1_port,
             cu_n2_interface_name=self._charm_config.n2_interface_name,
-            cu_n2_ip_address=_get_pod_ip(),
+            cu_n2_ip_address=_get_pod_ip(),  # type: ignore[arg-type]
             cu_n3_interface_name=self._charm_config.n3_interface_name,
-            cu_n3_ip_address=_get_pod_ip(),
+            cu_n3_ip_address=_get_pod_ip(),  # type: ignore[arg-type]
             amf_external_address=self._n2_requirer.amf_ip_address,
             mcc=self._charm_config.mcc,
             mnc=self._charm_config.mnc,
@@ -377,7 +378,7 @@ def _render_config_file(
     )
 
 
-def _get_pod_ip() -> str:
+def _get_pod_ip() -> Optional[str]:
     """Return the pod IP using juju client.
 
     Returns:
