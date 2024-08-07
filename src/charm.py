@@ -232,7 +232,6 @@ class OAIRANCUOperator(CharmBase):
             self._container.restart(self._service_name)
             logger.info("Restarted container %s", self._service_name)
             return
-        self._container.replan()
 
     def _update_fiveg_gnb_identity_relation_data(self) -> None:
         """Publish GNB name and TAC in the `fiveg_gnb_identity` relation data bag."""
