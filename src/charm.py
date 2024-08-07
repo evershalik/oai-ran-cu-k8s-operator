@@ -145,7 +145,7 @@ class OAIRANCUOperator(CharmBase):
         if not self._k8s_privileged.is_patched(container_name=self._container_name):
             self._k8s_privileged.patch_statefulset(container_name=self._container_name)
         cu_config = self._generate_cu_config()
-        if config_update_required := self._is_cu_config_up_to_date(cu_config):
+        if config_update_required := not self._is_cu_config_up_to_date(cu_config):
             self._write_config_file(content=cu_config)
         service_restart_required = config_update_required
         self._configure_pebble(restart=service_restart_required)
@@ -190,19 +190,17 @@ class OAIRANCUOperator(CharmBase):
         )
 
     def _is_cu_config_up_to_date(self, content: str) -> bool:
-        """Decide whether config update is required by checking existence and config content.
+        """Check whether the CU config file content matches the actual charm configuration.
 
         Args:
             content (str): desired config file content
 
         Returns:
-            True if config update is required else False
+            True if config is up-to-date else False
         """
-        if not self._config_file_is_written() or not self._config_file_content_matches(
+        return self._config_file_is_written() and self._config_file_content_matches(
             content=content
-        ):
-            return True
-        return False
+        )
 
     def _config_file_is_written(self) -> bool:
         return bool(self._container.exists(f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}"))
