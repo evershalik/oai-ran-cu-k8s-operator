@@ -211,9 +211,7 @@ class OAIRANCUOperator(CharmBase):
         if not self._container.exists(path=f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}"):
             return False
         existing_content = self._container.pull(path=f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}")
-        if existing_content.read() != content:
-            return False
-        return True
+        return existing_content.read() == content
 
     def _write_config_file(self, content: str) -> None:
         self._container.push(source=content, path=f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}")
