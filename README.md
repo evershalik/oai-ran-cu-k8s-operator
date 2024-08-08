@@ -1,8 +1,14 @@
-# This repo/template is archived.
+# OAI RAN CU (Central Unit) Operator (k8s)
+[![CharmHub Badge](https://charmhub.io/oai-ran-cu-k8s/badge.svg)](https://charmhub.io/oai-ran-cu-k8s)
 
-The initial purpose of this template was to test out possible alternatives to the `charmcraft init`
-defaults. Since this [PR](https://github.com/canonical/charmcraft/pull/932), the `charmcraft init`
-now supports 3 different profiles, all of which come with the same directory structure/layout as
-this template.
+A Charmed Operator for the OAI RAN Central Unit (CU) for K8s.
 
-Please use that in the future, and file any issues at https://github.com/canonical/charmcraft/issues/
+## Usage
+
+```bash
+juju deploy oai-ran-cu-k8s --trust --channel=2.1/edge
+```
+
+## Image
+
+- **oai-ran-cu**: `ghcr.io/canonical/oai-ran-cu:2.1.1`
