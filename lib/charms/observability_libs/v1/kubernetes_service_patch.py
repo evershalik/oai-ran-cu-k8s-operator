@@ -222,8 +222,6 @@ class KubernetesServicePatch(Object):
             additional_annotations,
         )
 
-        # Make mypy type checking happy that self._patch is a method
-        assert isinstance(self._patch, MethodType)
         # Ensure this patch is applied during the 'install' and 'upgrade-charm' events
         self.framework.observe(charm.on.install, self._patch)
         self.framework.observe(charm.on.upgrade_charm, self._on_upgrade_charm)
