@@ -6,7 +6,7 @@
 
 import logging
 
-from lightkube import Client
+from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.resources.apps_v1 import StatefulSet
 
@@ -51,10 +51,10 @@ class K8sPrivileged:
             container = next(
                 filter(
                     lambda ctr: ctr.name == container_name,
-                    statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
+                    statefulset.spec.template.spec.containers,  # type: ignore[reportOptionalMemberAccess]
                 )
             )
-            if not container.securityContext.privileged:
+            if not container.securityContext.privileged:  # type: ignore[reportOptionalMemberAccess]
                 return False
         except ApiError:
             raise K8sPrivilegedError(f"Could not get statefulset {self.statefulset_name}")
@@ -77,10 +77,10 @@ class K8sPrivileged:
             container = next(
                 filter(
                     lambda ctr: ctr.name == container_name,
-                    statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
+                    statefulset.spec.template.spec.containers,  # type: ignore[reportOptionalMemberAccess]
                 )
             )
-            container.securityContext.privileged = True
+            container.securityContext.privileged = True  # type: ignore[reportOptionalMemberAccess]
             self.k8s_client.replace(obj=statefulset)
             logger.info("Container %s patched", container_name)
         except ApiError:

@@ -99,16 +99,16 @@ class CharmConfig:
     ) -> "CharmConfig":
         """Initialize a new instance of the CharmState class from the associated charm."""
         try:
-            # ignoring because mypy fails with:
-            # "has incompatible type "**dict[str, str]"; expected ...""
-            return cls(cu_config=CUConfig(**dict(charm.config.items())))  # type: ignore
+            # ignoring because pyright fails with:
+            # "float" is incompatible with "int"
+            return cls(cu_config=CUConfig(**dict(charm.config.items())))  # type: ignore[reportArgumentType]
         except ValidationError as exc:
             error_fields: list = []
             for error in exc.errors():
                 if param := error["loc"]:
                     error_fields.extend(param)
                 else:
-                    value_error_msg: ValueError = error["ctx"]["error"]  # type: ignore
+                    value_error_msg: ValueError = error["ctx"]["error"]  # type: ignore[reportTypedDictNotRequiredAccess]
                     error_fields.extend(str(value_error_msg).split())
             error_fields.sort()
             error_field_str = ", ".join(f"'{f}'" for f in error_fields)

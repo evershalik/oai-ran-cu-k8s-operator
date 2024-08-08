@@ -6,9 +6,12 @@ from unittest.mock import PropertyMock, call, patch
 import pytest
 from charms.oai_ran_cu_k8s.v0.fiveg_f1 import FivegF1Error
 from ops import BoundEvent, testing
-from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
-TEST_CHARM_PATH = "test_charms.test_requirer_charm.src.charm.WhateverCharm"
+from tests.unit.lib.charms.oai_ran_cu_k8s.v0.test_charms.test_requirer_charm.src.charm import (
+    WhateverCharm,
+)
+
+TEST_CHARM_PATH = "tests.unit.lib.charms.oai_ran_cu_k8s.v0.test_charms.test_requirer_charm.src.charm.WhateverCharm"  # noqa: E501
 FIVEG_F1_REQUIRER_EVENTS_PATH = "charms.oai_ran_cu_k8s.v0.fiveg_f1.FivegF1RequirerCharmEvents"
 FIVEG_F1_REQUIRES_PATH = "charms.oai_ran_cu_k8s.v0.fiveg_f1.F1Requires"
 RELATION_NAME = "fiveg_f1"
@@ -28,7 +31,7 @@ class TestFivegF1Requires:
         patch.stopall()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)
         self.harness.begin()
         self.harness.set_leader(is_leader=True)
