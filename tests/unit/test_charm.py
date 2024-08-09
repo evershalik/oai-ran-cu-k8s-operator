@@ -44,7 +44,7 @@ class TestCharm:
         patch.stopall()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(OAIRANCUOperator)
         self.harness.set_model_name(name=NAMESPACE)
         self.harness.set_leader(is_leader=True)
@@ -367,8 +367,8 @@ class TestCharm:
         Returns:
             int: ID of the created relation
         """
-        amf_relation_id = self.harness.add_relation(relation_name="fiveg_n2", remote_app="amf")  # type: ignore[attr-defined]  # noqa: E501
-        self.harness.add_relation_unit(relation_id=amf_relation_id, remote_unit_name="amf/0")  # type: ignore[attr-defined]  # noqa: E501
+        amf_relation_id = self.harness.add_relation(relation_name="fiveg_n2", remote_app="amf")
+        self.harness.add_relation_unit(relation_id=amf_relation_id, remote_unit_name="amf/0")
         return amf_relation_id
 
     def set_n2_relation_data(self) -> int:
@@ -378,7 +378,7 @@ class TestCharm:
             int: ID of the created relation
         """
         amf_relation_id = self.create_n2_relation()
-        self.harness.update_relation_data(  # type: ignore[attr-defined]
+        self.harness.update_relation_data(
             relation_id=amf_relation_id,
             app_or_unit="amf",
             key_values={

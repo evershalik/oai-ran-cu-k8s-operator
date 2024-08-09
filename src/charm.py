@@ -10,12 +10,12 @@ from subprocess import check_output
 from typing import Optional
 
 from charm_config import CharmConfig, CharmConfigInvalidError
-from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides  # type: ignore[import]
-from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]
+from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides
+from charms.observability_libs.v1.kubernetes_service_patch import (
     KubernetesServicePatch,
 )
-from charms.sdcore_amf_k8s.v0.fiveg_n2 import N2Requires  # type: ignore[import]
-from charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity import (  # type: ignore[import]
+from charms.sdcore_amf_k8s.v0.fiveg_n2 import N2Requires
+from charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity import (
     GnbIdentityProvides,
 )
 from jinja2 import Environment, FileSystemLoader
@@ -95,7 +95,7 @@ class OAIRANCUOperator(CharmBase):
             logger.info("Scaling is not implemented for this charm")
             return
         try:
-            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError as exc:
             event.add_status(BlockedStatus(exc.msg))
             return
@@ -128,7 +128,7 @@ class OAIRANCUOperator(CharmBase):
 
     def _configure(self, _) -> None:
         try:
-            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
         if not self._relation_created(N2_RELATION_NAME):
@@ -172,16 +172,22 @@ class OAIRANCUOperator(CharmBase):
                 "DU F1 port information not available. Using default value %s", DU_F1_DEFAULT_PORT
             )
             du_f1_port = DU_F1_DEFAULT_PORT
+        if not (pod_ip := _get_pod_ip()):
+            logger.warning("Pod IP address not available")
+            return ""
+        if not self._n2_requirer.amf_ip_address:
+            logger.warning("AMF IP address not available")
+            return ""
         return _render_config_file(
             gnb_name=self._gnb_name,
             cu_f1_interface_name=self._charm_config.f1_interface_name,
-            cu_f1_ip_address=_get_pod_ip(),  # type: ignore[arg-type]
+            cu_f1_ip_address=pod_ip,
             cu_f1_port=self._charm_config.f1_port,
             du_f1_port=du_f1_port,
             cu_n2_interface_name=self._charm_config.n2_interface_name,
-            cu_n2_ip_address=_get_pod_ip(),  # type: ignore[arg-type]
+            cu_n2_ip_address=pod_ip,
             cu_n3_interface_name=self._charm_config.n3_interface_name,
-            cu_n3_ip_address=_get_pod_ip(),  # type: ignore[arg-type]
+            cu_n3_ip_address=pod_ip,
             amf_external_address=self._n2_requirer.amf_ip_address,
             mcc=self._charm_config.mcc,
             mnc=self._charm_config.mnc,
@@ -259,9 +265,10 @@ class OAIRANCUOperator(CharmBase):
         if not fiveg_f1_relations:
             logger.info("No %s relations found.", F1_RELATION_NAME)
             return
-        self._f1_provider.set_f1_information(
-            ip_address=_get_pod_ip(), port=self._charm_config.f1_port
-        )
+        if not (pod_ip := _get_pod_ip()):
+            logger.error("Pod IP address not available")
+            return
+        self._f1_provider.set_f1_information(ip_address=pod_ip, port=self._charm_config.f1_port)
 
     @property
     def _gnb_name(self) -> str:
