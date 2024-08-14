@@ -16,8 +16,8 @@ DB_CHARM_NAME = "mongodb-k8s"
 DB_CHARM_CHANNEL = "6/edge"
 NRF_CHARM_NAME = "sdcore-nrf-k8s"
 NRF_CHARM_CHANNEL = "1.5/edge"
-WEBUI_CHARM_NAME = "sdcore-webui-k8s"
-WEBUI_CHARM_CHANNEL = "1.5/edge"
+NMS_CHARM_NAME = "sdcore-nms-k8s"
+NMS_CHARM_CHANNEL = "1.5/edge"
 TLS_CHARM_NAME = "self-signed-certificates"
 TLS_CHARM_CHANNEL = "latest/stable"
 TIMEOUT = 5 * 60
@@ -93,7 +93,7 @@ async def deploy_dependencies(ops_test: OpsTest):
     assert ops_test.model
     await _deploy_mongodb(ops_test)
     await _deploy_tls_provider(ops_test)
-    await _deploy_webui(ops_test)
+    await _deploy_nms(ops_test)
     await _deploy_nrf(ops_test)
     await _deploy_amf(ops_test)
 
@@ -107,7 +107,7 @@ async def _deploy_amf(ops_test: OpsTest):
         trust=True,
     )
     await ops_test.model.integrate(relation1=AMF_CHARM_NAME, relation2=NRF_CHARM_NAME)
-    await ops_test.model.integrate(relation1=AMF_CHARM_NAME, relation2=WEBUI_CHARM_NAME)
+    await ops_test.model.integrate(relation1=AMF_CHARM_NAME, relation2=NMS_CHARM_NAME)
     await ops_test.model.integrate(relation1=AMF_CHARM_NAME, relation2=DB_CHARM_NAME)
     await ops_test.model.integrate(relation1=AMF_CHARM_NAME, relation2=TLS_CHARM_NAME)
 
@@ -141,19 +141,19 @@ async def _deploy_nrf(ops_test: OpsTest):
     )
     await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=DB_CHARM_NAME)
     await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=TLS_CHARM_NAME)
-    await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=WEBUI_CHARM_NAME)
+    await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=NMS_CHARM_NAME)
 
 
-async def _deploy_webui(ops_test: OpsTest):
+async def _deploy_nms(ops_test: OpsTest):
     assert ops_test.model
     await ops_test.model.deploy(
-        WEBUI_CHARM_NAME,
-        application_name=WEBUI_CHARM_NAME,
-        channel=WEBUI_CHARM_CHANNEL,
+        NMS_CHARM_NAME,
+        application_name=NMS_CHARM_NAME,
+        channel=NMS_CHARM_CHANNEL,
     )
     await ops_test.model.integrate(
-        relation1=f"{WEBUI_CHARM_NAME}:common_database", relation2=f"{DB_CHARM_NAME}"
+        relation1=f"{NMS_CHARM_NAME}:common_database", relation2=f"{DB_CHARM_NAME}"
     )
     await ops_test.model.integrate(
-        relation1=f"{WEBUI_CHARM_NAME}:auth_database", relation2=f"{DB_CHARM_NAME}"
+        relation1=f"{NMS_CHARM_NAME}:auth_database", relation2=f"{DB_CHARM_NAME}"
     )
