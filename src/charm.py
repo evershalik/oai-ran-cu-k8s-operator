@@ -10,6 +10,7 @@ from subprocess import check_output
 from typing import Optional
 
 from charm_config import CharmConfig, CharmConfigInvalidError
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides
 from charms.observability_libs.v1.kubernetes_service_patch import (
     KubernetesServicePatch,
@@ -35,6 +36,7 @@ N2_RELATION_NAME = "fiveg_n2"
 GNB_IDENTITY_RELATION_NAME = "fiveg_gnb_identity"
 DU_F1_DEFAULT_PORT = 2153
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
+LOGGING_RELATION_NAME = "logging"
 
 
 class OAIRANCUOperator(CharmBase):
@@ -50,6 +52,7 @@ class OAIRANCUOperator(CharmBase):
         self._n2_requirer = N2Requires(self, N2_RELATION_NAME)
         self._gnb_identity_provider = GnbIdentityProvides(self, GNB_IDENTITY_RELATION_NAME)
         self._f1_provider = F1Provides(self, F1_RELATION_NAME)
+        self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self._k8s_privileged = K8sPrivileged(
             namespace=self.model.name, statefulset_name=self.app.name
         )
