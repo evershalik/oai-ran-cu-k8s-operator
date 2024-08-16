@@ -44,6 +44,8 @@ provides:
 requires:
   fiveg_n2:
     interface: fiveg_n2
+  logging:
+    interface: loki_push_api
 
 config:
   options:
