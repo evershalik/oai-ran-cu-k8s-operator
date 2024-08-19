@@ -11,12 +11,12 @@ from subprocess import check_output
 from typing import List, Optional, cast
 
 from charm_config import CharmConfig, CharmConfigInvalidError
-from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides
 from charms.observability_libs.v1.kubernetes_service_patch import (
     KubernetesServicePatch,

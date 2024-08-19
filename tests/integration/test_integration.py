@@ -161,7 +161,6 @@ async def _deploy_nms(ops_test: OpsTest):
     )
     await ops_test.model.integrate(
         relation1=f"{NMS_CHARM_NAME}:auth_database", relation2=f"{DB_CHARM_NAME}"
-<<<<<<< HEAD
     )
 
 
@@ -171,6 +170,4 @@ async def _deploy_grafana_agent(ops_test: OpsTest):
         GRAFANA_AGENT_CHARM_NAME,
         application_name=GRAFANA_AGENT_CHARM_NAME,
         channel="stable",
-=======
->>>>>>> 9117cd9 (Adding Multus support)
     )
