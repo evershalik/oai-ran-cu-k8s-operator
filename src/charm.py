@@ -4,13 +4,19 @@
 
 """Charmed operator for the OAI RAN Central Unit (CU) for K8s."""
 
+import json
 import logging
 from ipaddress import IPv4Address
 from subprocess import check_output
-from typing import Optional
+from typing import List, Optional, cast
 
 from charm_config import CharmConfig, CharmConfigInvalidError
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
+from charms.kubernetes_charm_libraries.v0.multus import (
+    KubernetesMultusCharmLib,
+    NetworkAnnotation,
+    NetworkAttachmentDefinition,
+)
 from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides
 from charms.observability_libs.v1.kubernetes_service_patch import (
     KubernetesServicePatch,
@@ -22,8 +28,10 @@ from charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity import (
 from jinja2 import Environment, FileSystemLoader
 from k8s_privileged import K8sPrivileged
 from lightkube.models.core_v1 import ServicePort
+from lightkube.models.meta_v1 import ObjectMeta
 from ops import ActiveStatus, BlockedStatus, CollectStatusEvent, WaitingStatus
-from ops.charm import CharmBase
+from ops.charm import CharmBase, CharmEvents
+from ops.framework import EventBase, EventSource
 from ops.main import main
 from ops.pebble import Layer
 
@@ -33,14 +41,28 @@ BASE_CONFIG_PATH = "/tmp/conf"
 CONFIG_FILE_NAME = "cu.conf"
 F1_RELATION_NAME = "fiveg_f1"
 N2_RELATION_NAME = "fiveg_n2"
+N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3-net"
+N3_INTERFACE_NAME = "n3"
 GNB_IDENTITY_RELATION_NAME = "fiveg_gnb_identity"
 DU_F1_DEFAULT_PORT = 2153
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 LOGGING_RELATION_NAME = "logging"
 
 
+class NadConfigChangedEvent(EventBase):
+    """Event triggered when an existing network attachment definition is changed."""
+
+
+class CuCharmEvents(CharmEvents):
+    """Kubernetes Multus Charm Events."""
+
+    nad_config_changed = EventSource(NadConfigChangedEvent)
+
+
 class OAIRANCUOperator(CharmBase):
     """Main class to describe Juju event handling for the OAI RAN CU operator for K8s."""
+
+    on = CuCharmEvents()  # type: ignore
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -68,7 +90,14 @@ class OAIRANCUOperator(CharmBase):
                 ServicePort(name="n3", port=2152, protocol="UDP"),
             ],
         )
-
+        self._kubernetes_multus = KubernetesMultusCharmLib(
+            charm=self,
+            container_name=self._container_name,
+            cap_net_admin=True,
+            network_annotations_func=self._generate_network_annotations,
+            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
+            refresh_event=self.on.nad_config_changed,
+        )
         self.framework.observe(self.on.update_status, self._configure)
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.cu_pebble_ready, self._configure)
@@ -81,7 +110,7 @@ class OAIRANCUOperator(CharmBase):
             self._configure,
         )
 
-    def _on_collect_unit_status(self, event: CollectStatusEvent):
+    def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
         """Check the unit status and set to Unit when CollectStatusEvent is fired.
 
         Set the workload version if present in workload
@@ -114,6 +143,14 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(WaitingStatus("Waiting for Pod IP address to be available"))
             logger.info("Waiting for Pod IP address to be available")
             return
+        if not self._kubernetes_multus.multus_is_available():
+            event.add_status(BlockedStatus("Multus is not installed or enabled"))
+            logger.info("Multus is not installed or enabled")
+            return
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            logger.info("Waiting for Multus to be ready")
+            return
         if not self._k8s_privileged.is_patched(container_name=self._container_name):
             event.add_status(WaitingStatus("Waiting for statefulset to be patched"))
             logger.info("Waiting for statefulset to be patched")
@@ -139,6 +176,8 @@ class OAIRANCUOperator(CharmBase):
         if not self._container.can_connect():
             return
         if not self._container.exists(path=BASE_CONFIG_PATH):
+            return
+        if not self._kubernetes_multus.multus_is_available():
             return
         if not _get_pod_ip():
             return
@@ -189,7 +228,7 @@ class OAIRANCUOperator(CharmBase):
             du_f1_port=du_f1_port,
             cu_n2_interface_name=self._charm_config.n2_interface_name,
             cu_n2_ip_address=pod_ip,
-            cu_n3_interface_name=self._charm_config.n3_interface_name,
+            cu_n3_interface_name=self._charm_config.n3_interface_name,  # type: ignore
             cu_n3_ip_address=pod_ip,
             amf_external_address=self._n2_requirer.amf_ip_address,
             mcc=self._charm_config.mcc,
@@ -197,6 +236,48 @@ class OAIRANCUOperator(CharmBase):
             sst=self._charm_config.sst,
             tac=self._charm_config.tac,
         )
+
+    @staticmethod
+    def _generate_network_annotations() -> List[NetworkAnnotation]:
+        """Generate a list of NetworkAnnotations to be used by CU's StatefulSet.
+
+        Returns:
+            List[NetworkAnnotation]: List of NetworkAnnotations
+        """
+        return [
+            NetworkAnnotation(
+                name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface=N3_INTERFACE_NAME,
+            )
+        ]
+
+    @staticmethod
+    def _get_nad_base_config() -> dict:
+        return {
+            "cniVersion": "0.3.1",
+            "type": "macvlan",
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True},
+        }
+
+    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
+        """Return list of Multus NetworkAttachmentDefinitions to be created based on config."""
+        n3_nad_config = self._get_nad_base_config()
+        if (n3_interface := self._get_n3_interface_from_config()) is not None:
+            n3_nad_config.update({"type": "macvlan", "master": n3_interface})
+        else:
+            n3_nad_config.update({"type": "bridge", "bridge": "ran-br"})
+        return [
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                spec={"config": json.dumps(n3_nad_config)},
+            ),
+        ]
+
+    def _get_n3_interface_from_config(self) -> Optional[str]:
+        return cast(Optional[str], self.model.config.get("n3-interface-name"))
 
     def _is_cu_config_up_to_date(self, content: str) -> bool:
         """Check whether the CU config file content matches the actual charm configuration.

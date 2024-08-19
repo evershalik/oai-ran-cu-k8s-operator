@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
-
+import json
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +18,7 @@ from lightkube.resources.apps_v1 import StatefulSet
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 
+MULTUS_LIB = "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib"
 GNB_IDENTITY_LIB = "charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity.GnbIdentityProvides"
 NAMESPACE = "whatever"
 WORKLOAD_CONTAINER_NAME = "cu"
@@ -28,6 +29,8 @@ class TestCharm:
     patcher_lightkube_client_get = patch("lightkube.core.client.Client.get")
     patcher_lightkube_client_replace = patch("lightkube.core.client.Client.replace")
     patcher_k8s_service_patch = patch("charm.KubernetesServicePatch")
+    patcher_multus_ready = patch(f"{MULTUS_LIB}.is_ready")
+    patcher_multus_available = patch(f"{MULTUS_LIB}.multus_is_available")
     patcher_gnb_identity = patch(f"{GNB_IDENTITY_LIB}.publish_gnb_identity_information")
     patcher_check_output = patch("charm.check_output")
 
@@ -37,6 +40,8 @@ class TestCharm:
         self.mock_lightkube_client_get = TestCharm.patcher_lightkube_client_get.start()
         self.mock_lightkube_client_replace = TestCharm.patcher_lightkube_client_replace.start()
         self.mock_k8s_service_patch = TestCharm.patcher_k8s_service_patch.start()
+        self.mock_multus_ready = TestCharm.patcher_multus_ready.start()
+        self.mock_multus_available = TestCharm.patcher_multus_available.start()
         self.mock_gnb_identity = TestCharm.patcher_gnb_identity.start()
         self.mock_check_output = TestCharm.patcher_check_output.start()
 
@@ -45,6 +50,8 @@ class TestCharm:
 
     @pytest.fixture(autouse=True)
     def setup_harness(self, setUp, request):
+        self.mock_multus_ready.return_value = True
+        self.mock_multus_available.return_value = True
         self.harness = testing.Harness(OAIRANCUOperator)
         self.harness.set_model_name(name=NAMESPACE)
         self.harness.set_leader(is_leader=True)
@@ -70,7 +77,6 @@ class TestCharm:
             pytest.param("f1-interface-name", "", id="empty_f1_interface_name"),
             pytest.param("f1-port", int(), id="empty_f1_port"),
             pytest.param("n2-interface-name", "", id="empty_n2_interface_name"),
-            pytest.param("n3-interface-name", "", id="empty_n3_interface_name"),
             pytest.param("mcc", "", id="empty_mcc"),
             pytest.param("mnc", "", id="empty_mnc"),
             pytest.param("sst", int(), id="empty_sst"),
@@ -86,6 +92,38 @@ class TestCharm:
         assert self.harness.charm.unit.status == BlockedStatus(
             f"The following configurations are not valid: ['{config_param}']"
         )
+
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_interface_is_not_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "mnc": "01",
+            }
+        )
+        nad = self.harness.charm._network_attachment_definitions_from_config()
+        assert nad[0].spec
+        config = json.loads(nad[0].spec["config"])
+
+        assert "master" not in config
+        assert config["type"] == "bridge"
+        assert config["bridge"] == "ran-br"
+
+    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "n3-interface-name": "n3",
+            }
+        )
+        nad = self.harness.charm._network_attachment_definitions_from_config()
+        assert nad[0].spec
+        config = json.loads(nad[0].spec["config"])
+        assert config["master"] == "n3"
+        assert config["type"] == "macvlan"
 
     def test_given_n2_relation_not_created_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=True)
@@ -290,13 +328,31 @@ class TestCharm:
 
         self.mock_lightkube_client_replace.assert_not_called()
 
+    def test_given_multus_disabled_when_collect_status_then_status_is_blocked(self):
+        self.prepare_workload_for_configuration()
+        self.mock_multus_available.return_value = False
+        self.harness.evaluate_status()
+
+        assert self.harness.model.unit.status == BlockedStatus(
+            "Multus is not installed or enabled"
+        )
+
+    def test_given_multus_not_configured_when_collect_status_then_status_is_waiting(
+        self,
+    ):
+        self.prepare_workload_for_configuration()
+        self.mock_multus_ready.return_value = False
+        self.harness.evaluate_status()
+
+        assert self.harness.model.unit.status == WaitingStatus("Waiting for Multus to be ready")
+
     def test_given_workload_is_ready_to_be_configured_when_config_changed_then_cu_config_file_is_generated_and_pushed_to_the_workload_container(  # noqa: E501
         self,
     ):
         root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
         self.prepare_workload_for_configuration()
 
-        self.harness.update_config(key_values={})
+        self.harness.update_config(key_values={"n3-interface-name": "eth0"})
 
         with open("tests/unit/resources/expected_config.conf") as expected_config_file:
             expected_config = expected_config_file.read()
@@ -312,7 +368,7 @@ class TestCharm:
         )
         config_modification_time = (root / "tmp/conf/cu.conf").stat().st_mtime
 
-        self.harness.update_config(key_values={})
+        self.harness.update_config(key_values={"n3-interface-name": "eth0"})
 
         assert (root / "tmp/conf/cu.conf").stat().st_mtime == config_modification_time
 

@@ -63,7 +63,6 @@ config:
       description: Name of the network interface handling communication over the N2 interface.
     n3-interface-name:
       type: string
-      default: "eth0"
       description: Name of the network interface handling communication over the N3 interface."
     mcc:
       type: string

@@ -6,6 +6,7 @@
 
 import dataclasses
 import logging
+from typing import Optional
 
 import ops
 from pydantic import (  # pylint: disable=no-name-in-module,import-error
@@ -46,7 +47,7 @@ class CUConfig(BaseModel):  # pylint: disable=too-few-public-methods
     f1_interface_name: StrictStr = Field(min_length=1)
     f1_port: int = Field(ge=1, le=65535)
     n2_interface_name: StrictStr = Field(min_length=1)
-    n3_interface_name: StrictStr = Field(min_length=1)
+    n3_interface_name: Optional[StrictStr] = Field(default="")
     mcc: StrictStr = Field(pattern=r"^\d{3}$")
     mnc: StrictStr = Field(pattern=r"^\d{2}$")
     sst: int = Field(ge=1, le=4)
@@ -71,7 +72,7 @@ class CharmConfig:
     f1_interface_name: StrictStr
     f1_port: int
     n2_interface_name: StrictStr
-    n3_interface_name: StrictStr
+    n3_interface_name: Optional[StrictStr]
     mcc: StrictStr
     mnc: StrictStr
     sst: int
