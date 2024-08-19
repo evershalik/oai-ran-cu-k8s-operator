@@ -166,7 +166,7 @@ class OAIRANCUOperator(CharmBase):
             return
         event.add_status(ActiveStatus())
 
-    def _configure(self, _) -> None:
+    def _configure(self, _) -> None:  # noqa C901
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
@@ -178,6 +178,8 @@ class OAIRANCUOperator(CharmBase):
         if not self._container.exists(path=BASE_CONFIG_PATH):
             return
         if not self._kubernetes_multus.multus_is_available():
+            return
+        if not self._kubernetes_multus.is_ready():
             return
         if not _get_pod_ip():
             return
@@ -220,6 +222,9 @@ class OAIRANCUOperator(CharmBase):
         if not self._n2_requirer.amf_ip_address:
             logger.warning("AMF IP address not available")
             return ""
+        if (n3_interface_name := self._get_n3_interface_from_config()) is None:
+            n3_interface_name = N3_INTERFACE_NAME
+
         return _render_config_file(
             gnb_name=self._gnb_name,
             cu_f1_interface_name=self._charm_config.f1_interface_name,
@@ -228,7 +233,7 @@ class OAIRANCUOperator(CharmBase):
             du_f1_port=du_f1_port,
             cu_n2_interface_name=self._charm_config.n2_interface_name,
             cu_n2_ip_address=pod_ip,
-            cu_n3_interface_name=self._charm_config.n3_interface_name,  # type: ignore
+            cu_n3_interface_name=n3_interface_name,
             cu_n3_ip_address=pod_ip,
             amf_external_address=self._n2_requirer.amf_ip_address,
             mcc=self._charm_config.mcc,

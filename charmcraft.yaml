@@ -63,7 +63,9 @@ config:
       description: Name of the network interface handling communication over the N2 interface.
     n3-interface-name:
       type: string
-      description: Name of the network interface handling communication over the N3 interface."
+      description: | 
+        Name of the network interface handling communication over the N3 interface. 
+        Host interface to use for the RAN Network. If unspecified, a bridge will be used.
     mcc:
       type: string
       default: "001"
