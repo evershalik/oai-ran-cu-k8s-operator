@@ -20,6 +20,7 @@ from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 
 MULTUS_LIB = "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib"
 GNB_IDENTITY_LIB = "charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity.GnbIdentityProvides"
+MULTUS_K8S_CLIENT = "charms.kubernetes_charm_libraries.v0.multus.KubernetesClient"
 NAMESPACE = "whatever"
 WORKLOAD_CONTAINER_NAME = "cu"
 
@@ -33,6 +34,7 @@ class TestCharm:
     patcher_multus_available = patch(f"{MULTUS_LIB}.multus_is_available")
     patcher_gnb_identity = patch(f"{GNB_IDENTITY_LIB}.publish_gnb_identity_information")
     patcher_check_output = patch("charm.check_output")
+    patcher_multus_statefulset_patch = patch(f"{MULTUS_K8S_CLIENT}.statefulset_is_patched")
 
     @pytest.fixture()
     def setUp(self):
@@ -44,6 +46,7 @@ class TestCharm:
         self.mock_multus_available = TestCharm.patcher_multus_available.start()
         self.mock_gnb_identity = TestCharm.patcher_gnb_identity.start()
         self.mock_check_output = TestCharm.patcher_check_output.start()
+        self.mock_multus_statefulset_patch = TestCharm.patcher_multus_statefulset_patch.start()
 
     def tearDown(self) -> None:
         patch.stopall()

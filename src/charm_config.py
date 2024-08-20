@@ -48,6 +48,7 @@ class CUConfig(BaseModel):  # pylint: disable=too-few-public-methods
     f1_port: int = Field(ge=1, le=65535)
     n2_interface_name: StrictStr = Field(min_length=1)
     n3_interface_name: Optional[StrictStr] = Field(default="")
+    n3_ip_address: str = Field(default="192.168.251.6/24")
     mcc: StrictStr = Field(pattern=r"^\d{3}$")
     mnc: StrictStr = Field(pattern=r"^\d{2}$")
     sst: int = Field(ge=1, le=4)
@@ -88,6 +89,7 @@ class CharmConfig:
         self.f1_port = cu_config.f1_port
         self.n2_interface_name = cu_config.n2_interface_name
         self.n3_interface_name = cu_config.n3_interface_name
+        self.n3_ip_address = cu_config.n3_ip_address
         self.mcc = cu_config.mcc
         self.mnc = cu_config.mnc
         self.sst = cu_config.sst

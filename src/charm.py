@@ -53,7 +53,7 @@ class NadConfigChangedEvent(EventBase):
     """Event triggered when an existing network attachment definition is changed."""
 
 
-class CuCharmEvents(CharmEvents):
+class KubernetesMultusCharmEvents(CharmEvents):
     """Kubernetes Multus Charm Events."""
 
     nad_config_changed = EventSource(NadConfigChangedEvent)
@@ -62,7 +62,7 @@ class CuCharmEvents(CharmEvents):
 class OAIRANCUOperator(CharmBase):
     """Main class to describe Juju event handling for the OAI RAN CU operator for K8s."""
 
-    on = CuCharmEvents()  # type: ignore
+    on = KubernetesMultusCharmEvents()  # type: ignore
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -82,14 +82,6 @@ class OAIRANCUOperator(CharmBase):
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
-        self._service_patcher = KubernetesServicePatch(
-            charm=self,
-            ports=[
-                ServicePort(name="f1", port=self._charm_config.f1_port, protocol="UDP"),
-                ServicePort(name="n2", port=36412, protocol="SCTP"),
-                ServicePort(name="n3", port=2152, protocol="UDP"),
-            ],
-        )
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._container_name,
@@ -98,6 +90,15 @@ class OAIRANCUOperator(CharmBase):
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
             refresh_event=self.on.nad_config_changed,
         )
+        self._service_patcher = KubernetesServicePatch(
+            charm=self,
+            ports=[
+                ServicePort(name="f1", port=self._charm_config.f1_port, protocol="UDP"),
+                ServicePort(name="n2", port=36412, protocol="SCTP"),
+                ServicePort(name="n3", port=2152, protocol="UDP"),
+            ],
+        )
+
         self.framework.observe(self.on.update_status, self._configure)
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.cu_pebble_ready, self._configure)
@@ -131,6 +132,10 @@ class OAIRANCUOperator(CharmBase):
         except CharmConfigInvalidError as exc:
             event.add_status(BlockedStatus(exc.msg))
             return
+        if not self._kubernetes_multus.multus_is_available():
+            event.add_status(BlockedStatus("Multus is not installed or enabled"))
+            logger.info("Multus is not installed or enabled")
+            return
         if not self._relation_created(N2_RELATION_NAME):
             event.add_status(BlockedStatus("Waiting for N2 relation to be created"))
             logger.info("Waiting for N2 relation to be created")
@@ -143,19 +148,15 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(WaitingStatus("Waiting for Pod IP address to be available"))
             logger.info("Waiting for Pod IP address to be available")
             return
-        if not self._kubernetes_multus.multus_is_available():
-            event.add_status(BlockedStatus("Multus is not installed or enabled"))
-            logger.info("Multus is not installed or enabled")
-            return
-        if not self._kubernetes_multus.is_ready():
-            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
-            logger.info("Waiting for Multus to be ready")
-            return
         if not self._k8s_privileged.is_patched(container_name=self._container_name):
             event.add_status(WaitingStatus("Waiting for statefulset to be patched"))
             logger.info("Waiting for statefulset to be patched")
             return
         self.unit.set_workload_version(self._get_workload_version())
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            logger.info("Waiting for Multus to be ready")
+            return
         if not self._container.exists(path=BASE_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")
@@ -171,21 +172,21 @@ class OAIRANCUOperator(CharmBase):
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
+        if not self._kubernetes_multus.multus_is_available():
+            return
         if not self._relation_created(N2_RELATION_NAME):
             return
         if not self._container.can_connect():
             return
         if not self._container.exists(path=BASE_CONFIG_PATH):
             return
-        if not self._kubernetes_multus.multus_is_available():
-            return
-        if not self._kubernetes_multus.is_ready():
-            return
         if not _get_pod_ip():
+            return
+        self.on.nad_config_changed.emit()
+        if not self._kubernetes_multus.is_ready():
             return
         if not self._n2_requirer.amf_hostname:
             return
-
         if not self._k8s_privileged.is_patched(container_name=self._container_name):
             self._k8s_privileged.patch_statefulset(container_name=self._container_name)
         cu_config = self._generate_cu_config()
@@ -256,13 +257,17 @@ class OAIRANCUOperator(CharmBase):
             )
         ]
 
-    @staticmethod
-    def _get_nad_base_config() -> dict:
+    def _get_nad_base_config(self) -> dict:
         return {
             "cniVersion": "0.3.1",
             "type": "macvlan",
             "ipam": {
                 "type": "static",
+                "addresses": [
+                    {
+                        "address": self._get_n3_ip_address_from_config(),
+                    }
+                ],
             },
             "capabilities": {"mac": True},
         }
@@ -283,6 +288,9 @@ class OAIRANCUOperator(CharmBase):
 
     def _get_n3_interface_from_config(self) -> Optional[str]:
         return cast(Optional[str], self.model.config.get("n3-interface-name"))
+
+    def _get_n3_ip_address_from_config(self) -> Optional[str]:
+        return cast(Optional[str], self.model.config.get("n3-ip-address"))
 
     def _is_cu_config_up_to_date(self, content: str) -> bool:
         """Check whether the CU config file content matches the actual charm configuration.

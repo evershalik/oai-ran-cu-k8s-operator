@@ -66,6 +66,10 @@ config:
       description: | 
         Name of the network interface handling communication over the N3 interface. 
         Host interface to use for the RAN Network. If unspecified, a bridge will be used.
+    n3-ip-address:
+      type: string
+      default: "192.168.251.6/24"
+      description: CU IP Address
     mcc:
       type: string
       default: "001"
