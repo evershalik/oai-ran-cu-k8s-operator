@@ -38,6 +38,7 @@ class TestCharm:
 
     @pytest.fixture()
     def setUp(self):
+        self.maxDiff = None
         self.mock_lightkube_client = TestCharm.patcher_lightkube_client.start()
         self.mock_lightkube_client_get = TestCharm.patcher_lightkube_client_get.start()
         self.mock_lightkube_client_replace = TestCharm.patcher_lightkube_client_replace.start()
@@ -77,9 +78,13 @@ class TestCharm:
     @pytest.mark.parametrize(
         "config_param,value",
         [
-            pytest.param("f1-interface-name", "", id="empty_f1_interface_name"),
+            pytest.param("n3-ip-address", "", id="empty_n3_ip-address"),
+            pytest.param("f1-ip-address", "", id="empty_f1_ip-address"),
             pytest.param("f1-port", int(), id="empty_f1_port"),
             pytest.param("n2-interface-name", "", id="empty_n2_interface_name"),
+            pytest.param("n3-interface-name", "", id="empty_n3_interface_name"),
+            pytest.param("f1-interface-name", "", id="empty_f1_interface_name"),
+            pytest.param("n2-ip-address", "", id="empty_n2_ip_address"),
             pytest.param("mcc", "", id="empty_mcc"),
             pytest.param("mnc", "", id="empty_mnc"),
             pytest.param("sst", int(), id="empty_sst"),
@@ -96,37 +101,44 @@ class TestCharm:
             f"The following configurations are not valid: ['{config_param}']"
         )
 
-    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_interface_is_not_specified_in_nad(  # noqa: E501
+    def test_given_macvlan_cni_type_when_network_attachment_definitions_from_config_is_called_then_interfaces_type_are_macvlan(  # noqa: E501
         self,
     ):
         self.harness.disable_hooks()
         self.harness.update_config(
             key_values={
-                "mnc": "01",
+                "cni-type": "macvlan",
+                "n3-interface-name": "ran",
+                "f1-interface-name": "du",
+                "n2-interface-name": "core",
             }
         )
+        self.harness.evaluate_status()
         nad = self.harness.charm._network_attachment_definitions_from_config()
-        assert nad[0].spec
-        config = json.loads(nad[0].spec["config"])
+        config_n3 = json.loads(nad[0].spec["config"])  # type: ignore
+        assert config_n3["type"] == "macvlan"
+        assert config_n3["master"] == "ran"
+        config_f1 = json.loads(nad[1].spec["config"])  # type: ignore
+        assert config_f1["type"] == "macvlan"
+        assert config_f1["master"] == "du"
+        config_n2 = json.loads(nad[2].spec["config"])  # type: ignore
+        assert config_n2["type"] == "macvlan"
+        assert config_n2["master"] == "core"
 
-        assert "master" not in config
-        assert config["type"] == "bridge"
-        assert config["bridge"] == "ran-br"
-
-    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_interfaces_type_are_bridge(  # noqa: E501
         self,
     ):
         self.harness.disable_hooks()
-        self.harness.update_config(
-            key_values={
-                "n3-interface-name": "n3",
-            }
-        )
+        self.harness.update_config(key_values={})
+        self.harness.evaluate_status()
         nad = self.harness.charm._network_attachment_definitions_from_config()
         assert nad[0].spec
-        config = json.loads(nad[0].spec["config"])
-        assert config["master"] == "n3"
-        assert config["type"] == "macvlan"
+        config_n3 = json.loads(nad[0].spec["config"])
+        assert config_n3["type"] == "bridge"
+        config_f1 = json.loads(nad[0].spec["config"])
+        assert config_f1["type"] == "bridge"
+        config_n2 = json.loads(nad[0].spec["config"])
+        assert config_n2["type"] == "bridge"
 
     def test_given_n2_relation_not_created_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=True)
@@ -355,8 +367,7 @@ class TestCharm:
         root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
         self.prepare_workload_for_configuration()
 
-        self.harness.update_config(key_values={"n3-interface-name": "eth0"})
-
+        self.harness.update_config(key_values={})
         with open("tests/unit/resources/expected_config.conf") as expected_config_file:
             expected_config = expected_config_file.read()
         assert (root / "tmp/conf/cu.conf").read_text() == expected_config.strip()
@@ -371,7 +382,7 @@ class TestCharm:
         )
         config_modification_time = (root / "tmp/conf/cu.conf").stat().st_mtime
 
-        self.harness.update_config(key_values={"n3-interface-name": "eth0"})
+        self.harness.update_config(key_values={})
 
         assert (root / "tmp/conf/cu.conf").stat().st_mtime == config_modification_time
 

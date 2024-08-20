@@ -8,9 +8,9 @@ import json
 import logging
 from ipaddress import IPv4Address
 from subprocess import check_output
-from typing import List, Optional, cast
+from typing import List, Optional
 
-from charm_config import CharmConfig, CharmConfigInvalidError
+from charm_config import CharmConfig, CharmConfigInvalidError, CNIType
 from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
     NetworkAnnotation,
@@ -41,8 +41,6 @@ BASE_CONFIG_PATH = "/tmp/conf"
 CONFIG_FILE_NAME = "cu.conf"
 F1_RELATION_NAME = "fiveg_f1"
 N2_RELATION_NAME = "fiveg_n2"
-N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3-net"
-N3_INTERFACE_NAME = "n3"
 GNB_IDENTITY_RELATION_NAME = "fiveg_gnb_identity"
 DU_F1_DEFAULT_PORT = 2153
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
@@ -136,6 +134,10 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(BlockedStatus("Multus is not installed or enabled"))
             logger.info("Multus is not installed or enabled")
             return
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            logger.info("Waiting for Multus to be ready")
+            return
         if not self._relation_created(N2_RELATION_NAME):
             event.add_status(BlockedStatus("Waiting for N2 relation to be created"))
             logger.info("Waiting for N2 relation to be created")
@@ -153,10 +155,6 @@ class OAIRANCUOperator(CharmBase):
             logger.info("Waiting for statefulset to be patched")
             return
         self.unit.set_workload_version(self._get_workload_version())
-        if not self._kubernetes_multus.is_ready():
-            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
-            logger.info("Waiting for Multus to be ready")
-            return
         if not self._container.exists(path=BASE_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")
@@ -174,6 +172,8 @@ class OAIRANCUOperator(CharmBase):
             return
         if not self._kubernetes_multus.multus_is_available():
             return
+        if not self._kubernetes_multus.is_ready():
+            return
         if not self._relation_created(N2_RELATION_NAME):
             return
         if not self._container.can_connect():
@@ -183,10 +183,9 @@ class OAIRANCUOperator(CharmBase):
         if not _get_pod_ip():
             return
         self.on.nad_config_changed.emit()
-        if not self._kubernetes_multus.is_ready():
-            return
         if not self._n2_requirer.amf_hostname:
             return
+
         if not self._k8s_privileged.is_patched(container_name=self._container_name):
             self._k8s_privileged.patch_statefulset(container_name=self._container_name)
         cu_config = self._generate_cu_config()
@@ -217,25 +216,26 @@ class OAIRANCUOperator(CharmBase):
                 "DU F1 port information not available. Using default value %s", DU_F1_DEFAULT_PORT
             )
             du_f1_port = DU_F1_DEFAULT_PORT
-        if not (pod_ip := _get_pod_ip()):
-            logger.warning("Pod IP address not available")
+        if not (
+            self._charm_config.f1_ip_address
+            and self._charm_config.n2_ip_address
+            and self._charm_config.n3_ip_address
+        ):
+            logger.warning("Interfaces ip addresses are not available")
             return ""
         if not self._n2_requirer.amf_ip_address:
             logger.warning("AMF IP address not available")
             return ""
-        if (n3_interface_name := self._get_n3_interface_from_config()) is None:
-            n3_interface_name = N3_INTERFACE_NAME
-
         return _render_config_file(
             gnb_name=self._gnb_name,
             cu_f1_interface_name=self._charm_config.f1_interface_name,
-            cu_f1_ip_address=pod_ip,
+            cu_f1_ip_address=self._charm_config.f1_ip_address,
             cu_f1_port=self._charm_config.f1_port,
             du_f1_port=du_f1_port,
             cu_n2_interface_name=self._charm_config.n2_interface_name,
-            cu_n2_ip_address=pod_ip,
-            cu_n3_interface_name=n3_interface_name,
-            cu_n3_ip_address=pod_ip,
+            cu_n2_ip_address=self._charm_config.n2_ip_address,
+            cu_n3_interface_name=self._charm_config.n3_interface_name,
+            cu_n3_ip_address=self._charm_config.n3_ip_address,
             amf_external_address=self._n2_requirer.amf_ip_address,
             mcc=self._charm_config.mcc,
             mnc=self._charm_config.mnc,
@@ -243,8 +243,7 @@ class OAIRANCUOperator(CharmBase):
             tac=self._charm_config.tac,
         )
 
-    @staticmethod
-    def _generate_network_annotations() -> List[NetworkAnnotation]:
+    def _generate_network_annotations(self) -> List[NetworkAnnotation]:
         """Generate a list of NetworkAnnotations to be used by CU's StatefulSet.
 
         Returns:
@@ -252,45 +251,122 @@ class OAIRANCUOperator(CharmBase):
         """
         return [
             NetworkAnnotation(
-                name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                interface=N3_INTERFACE_NAME,
-            )
+                name="n3-net",
+                interface=self._charm_config.n3_interface_name,
+            ),
+            NetworkAnnotation(
+                name="n2-net",
+                interface=self._charm_config.n2_interface_name,
+            ),
+            NetworkAnnotation(
+                name="f1-net",
+                interface=self._charm_config.f1_interface_name,
+            ),
         ]
 
-    def _get_nad_base_config(self) -> dict:
-        return {
+    def _get_n3_nad_config(self) -> dict:
+        n3_nad_config = {
             "cniVersion": "0.3.1",
-            "type": "macvlan",
             "ipam": {
                 "type": "static",
+                "routes": [
+                    {
+                        "dst": str(self._charm_config.n3_subnet),
+                        "gw": str(self._charm_config.n3_gateway_ip),
+                    }
+                ],
                 "addresses": [
                     {
-                        "address": self._get_n3_ip_address_from_config(),
+                        "address": self._charm_config.n3_ip_address,
                     }
                 ],
             },
             "capabilities": {"mac": True},
         }
+        cni_type = self._charm_config.cni_type
+        if cni_type == CNIType.macvlan:
+            n3_nad_config.update(
+                {
+                    "type": "macvlan",
+                    "master": self._charm_config.n3_interface_name,
+                }
+            )
+        elif cni_type == CNIType.bridge:
+            n3_nad_config.update({"type": "bridge", "bridge": "n3-br"})
+        return n3_nad_config
+
+    def _get_f1_nad_config(self) -> dict:
+        f1_nad_config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "addresses": [
+                    {
+                        "address": self._charm_config.f1_interface_name,
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        cni_type = self._charm_config.cni_type
+        if cni_type == CNIType.macvlan:
+            f1_nad_config.update(
+                {
+                    "type": "macvlan",
+                    "master": self._charm_config.f1_interface_name,
+                }
+            )
+        elif cni_type == CNIType.bridge:
+            f1_nad_config.update({"type": "bridge", "bridge": "f1-br"})
+        return f1_nad_config
+
+    def _get_n2_nad_config(self) -> dict:
+        n2_nad_config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "addresses": [
+                    {
+                        "address": self._charm_config.n2_ip_address,
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        cni_type = self._charm_config.cni_type
+        if cni_type == CNIType.macvlan:
+            n2_nad_config.update(
+                {
+                    "type": "macvlan",
+                    "master": self._charm_config.n2_interface_name,
+                }
+            )
+        elif cni_type == CNIType.bridge:
+            n2_nad_config.update({"type": "bridge", "bridge": "n2-br"})
+        return n2_nad_config
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Return list of Multus NetworkAttachmentDefinitions to be created based on config."""
-        n3_nad_config = self._get_nad_base_config()
-        if (n3_interface := self._get_n3_interface_from_config()) is not None:
-            n3_nad_config.update({"type": "macvlan", "master": n3_interface})
-        else:
-            n3_nad_config.update({"type": "bridge", "bridge": "ran-br"})
+        # Get n3 NAD config
+        n3_nad_config = self._get_n3_nad_config()
+        # Get f1 NAD config
+        f1_nad_config = self._get_f1_nad_config()
+        # Get n2 NAD config
+        n2_nad_config = self._get_n2_nad_config()
         return [
             NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                metadata=ObjectMeta(name=self._charm_config.n3_interface_name),
                 spec={"config": json.dumps(n3_nad_config)},
             ),
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=self._charm_config.f1_interface_name),
+                spec={"config": json.dumps(f1_nad_config)},
+            ),
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=self._charm_config.n2_interface_name),
+                spec={"config": json.dumps(n2_nad_config)},
+            ),
         ]
-
-    def _get_n3_interface_from_config(self) -> Optional[str]:
-        return cast(Optional[str], self.model.config.get("n3-interface-name"))
-
-    def _get_n3_ip_address_from_config(self) -> Optional[str]:
-        return cast(Optional[str], self.model.config.get("n3-ip-address"))
 
     def _is_cu_config_up_to_date(self, content: str) -> bool:
         """Check whether the CU config file content matches the actual charm configuration.
@@ -362,10 +438,10 @@ class OAIRANCUOperator(CharmBase):
         if not fiveg_f1_relations:
             logger.info("No %s relations found.", F1_RELATION_NAME)
             return
-        if not (pod_ip := _get_pod_ip()):
-            logger.error("Pod IP address not available")
+        if not (f1_ip := self._charm_config.f1_ip_address):
+            logger.error("F1 IP address is not available")
             return
-        self._f1_provider.set_f1_information(ip_address=pod_ip, port=self._charm_config.f1_port)
+        self._f1_provider.set_f1_information(ip_address=f1_ip, port=self._charm_config.f1_port)
 
     @property
     def _gnb_name(self) -> str:
