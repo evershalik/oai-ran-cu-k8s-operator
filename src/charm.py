@@ -134,10 +134,6 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(BlockedStatus("Multus is not installed or enabled"))
             logger.info("Multus is not installed or enabled")
             return
-        if not self._kubernetes_multus.is_ready():
-            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
-            logger.info("Waiting for Multus to be ready")
-            return
         if not self._relation_created(N2_RELATION_NAME):
             event.add_status(BlockedStatus("Waiting for N2 relation to be created"))
             logger.info("Waiting for N2 relation to be created")
@@ -155,6 +151,10 @@ class OAIRANCUOperator(CharmBase):
             logger.info("Waiting for statefulset to be patched")
             return
         self.unit.set_workload_version(self._get_workload_version())
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            logger.info("Waiting for Multus to be ready")
+            return
         if not self._container.exists(path=BASE_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")
@@ -172,6 +172,7 @@ class OAIRANCUOperator(CharmBase):
             return
         if not self._kubernetes_multus.multus_is_available():
             return
+        self.on.nad_config_changed.emit()
         if not self._kubernetes_multus.is_ready():
             return
         if not self._relation_created(N2_RELATION_NAME):
@@ -182,7 +183,6 @@ class OAIRANCUOperator(CharmBase):
             return
         if not _get_pod_ip():
             return
-        self.on.nad_config_changed.emit()
         if not self._n2_requirer.amf_hostname:
             return
 
@@ -269,12 +269,6 @@ class OAIRANCUOperator(CharmBase):
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
-                "routes": [
-                    {
-                        "dst": str(self._charm_config.n3_subnet),
-                        "gw": str(self._charm_config.n3_gateway_ip),
-                    }
-                ],
                 "addresses": [
                     {
                         "address": self._charm_config.n3_ip_address,
@@ -283,6 +277,17 @@ class OAIRANCUOperator(CharmBase):
             },
             "capabilities": {"mac": True},
         }
+        if self._charm_config.n3_subnet and self._charm_config.n3_gateway_ip:
+            n3_nad_config.update(
+                {
+                    "routes": [
+                        {
+                            "dst": str(self._charm_config.n3_subnet),
+                            "gw": str(self._charm_config.n3_gateway_ip),
+                        },
+                    ],
+                }
+            )
         cni_type = self._charm_config.cni_type
         if cni_type == CNIType.macvlan:
             n3_nad_config.update(
@@ -302,7 +307,7 @@ class OAIRANCUOperator(CharmBase):
                 "type": "static",
                 "addresses": [
                     {
-                        "address": self._charm_config.f1_interface_name,
+                        "address": self._charm_config.f1_ip_address,
                     }
                 ],
             },
@@ -355,15 +360,15 @@ class OAIRANCUOperator(CharmBase):
         n2_nad_config = self._get_n2_nad_config()
         return [
             NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=self._charm_config.n3_interface_name),
+                metadata=ObjectMeta(name=f"{self._charm_config.n3_interface_name}-net"),
                 spec={"config": json.dumps(n3_nad_config)},
             ),
             NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=self._charm_config.f1_interface_name),
+                metadata=ObjectMeta(name=f"{self._charm_config.f1_interface_name}-net"),
                 spec={"config": json.dumps(f1_nad_config)},
             ),
             NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=self._charm_config.n2_interface_name),
+                metadata=ObjectMeta(name=f"{self._charm_config.n2_interface_name}-net"),
                 spec={"config": json.dumps(n2_nad_config)},
             ),
         ]

@@ -91,11 +91,10 @@ config:
       description: CU N3 interface IP Address in CIDR format
     n3-gateway-ip:
       type: string
-      default: "192.168.252.1"
-      description: Gateway IP to the UPF Access Network.
+      description: |
+        Gateway IP to the UPF Access Network. This should be provided, if a route is required to UPF access network subnet.
     n3-subnet:
       type: string
-      default: "192.168.252.0/24"
       description: UPF access network subnet
     mcc:
       type: string
