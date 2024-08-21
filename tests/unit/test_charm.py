@@ -2,7 +2,7 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 import json
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 from charm import OAIRANCUOperator
@@ -21,6 +21,7 @@ from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 MULTUS_LIB = "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib"
 GNB_IDENTITY_LIB = "charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity.GnbIdentityProvides"
 MULTUS_K8S_CLIENT = "charms.kubernetes_charm_libraries.v0.multus.KubernetesClient"
+F1_LIB = "charms.oai_ran_cu_k8s.v0.fiveg_f1.F1Provides"
 NAMESPACE = "whatever"
 WORKLOAD_CONTAINER_NAME = "cu"
 
@@ -33,12 +34,12 @@ class TestCharm:
     patcher_multus_ready = patch(f"{MULTUS_LIB}.is_ready")
     patcher_multus_available = patch(f"{MULTUS_LIB}.multus_is_available")
     patcher_gnb_identity = patch(f"{GNB_IDENTITY_LIB}.publish_gnb_identity_information")
+    patcher_f1_set_information = patch(f"{F1_LIB}.set_f1_information")
     patcher_check_output = patch("charm.check_output")
     patcher_multus_statefulset_patch = patch(f"{MULTUS_K8S_CLIENT}.statefulset_is_patched")
 
     @pytest.fixture()
     def setUp(self):
-        self.maxDiff = None
         self.mock_lightkube_client = TestCharm.patcher_lightkube_client.start()
         self.mock_lightkube_client_get = TestCharm.patcher_lightkube_client_get.start()
         self.mock_lightkube_client_replace = TestCharm.patcher_lightkube_client_replace.start()
@@ -48,6 +49,7 @@ class TestCharm:
         self.mock_gnb_identity = TestCharm.patcher_gnb_identity.start()
         self.mock_check_output = TestCharm.patcher_check_output.start()
         self.mock_multus_statefulset_patch = TestCharm.patcher_multus_statefulset_patch.start()
+        self.mock_f1_set_information = TestCharm.patcher_f1_set_information.start()
 
     def tearDown(self) -> None:
         patch.stopall()
@@ -79,12 +81,15 @@ class TestCharm:
         "config_param,value",
         [
             pytest.param("n3-ip-address", "", id="empty_n3_ip-address"),
+            pytest.param("n3-ip-address", "4.5", id="invalid_n3_ip-address"),
             pytest.param("f1-ip-address", "", id="empty_f1_ip-address"),
+            pytest.param("f1-ip-address", "5.5.5/3", id="invalid_f1_ip-address"),
             pytest.param("f1-port", int(), id="empty_f1_port"),
             pytest.param("n2-interface-name", "", id="empty_n2_interface_name"),
             pytest.param("n3-interface-name", "", id="empty_n3_interface_name"),
             pytest.param("f1-interface-name", "", id="empty_f1_interface_name"),
             pytest.param("n2-ip-address", "", id="empty_n2_ip_address"),
+            pytest.param("n2-ip-address", "3/3", id="invalid_n2_ip_address"),
             pytest.param("mcc", "", id="empty_mcc"),
             pytest.param("mnc", "", id="empty_mnc"),
             pytest.param("sst", int(), id="empty_sst"),
@@ -139,6 +144,27 @@ class TestCharm:
         assert config_f1["type"] == "bridge"
         config_n2 = json.loads(nad[0].spec["config"])
         assert config_n2["type"] == "bridge"
+
+    def test_given_n3_subnet_and_gw_provided_when_network_attachment_definitions_from_config_is_called_then_route_is_created(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "n3-gateway-ip": "192.168.1.12",
+                "n3-subnet": "172.10.0.0/24",
+            }
+        )
+        self.harness.evaluate_status()
+        nad = self.harness.charm._network_attachment_definitions_from_config()
+        assert nad[0].spec
+        config_n3 = json.loads(nad[0].spec["config"])
+        assert config_n3["routes"] == [
+            {
+                "dst": "172.10.0.0/24",
+                "gw": "192.168.1.12",
+            },
+        ]
 
     def test_given_n2_relation_not_created_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=True)
@@ -429,6 +455,57 @@ class TestCharm:
             relation_id=relation_id,
             gnb_name=f"{NAMESPACE}-{self.harness.charm.app.name}-cu",
             tac=1,
+        )
+
+    def test_given_charm_is_configured_and_running_when_f1_relation_is_added_then_f1_interface_ip_and_port_is_published(  # noqa: E501
+        self,
+    ):
+        self.prepare_workload_for_configuration()
+        root = self.harness.get_filesystem_root(WORKLOAD_CONTAINER_NAME)
+        (root / "tmp/conf/cu.conf").write_text(
+            self._read_file("tests/unit/resources/expected_config.conf").strip()
+        )
+        self.harness.evaluate_status()
+        f1_relation_id = self.harness.add_relation(relation_name="fiveg_f1", remote_app="du")
+        self.harness.add_relation_unit(relation_id=f1_relation_id, remote_unit_name="du/0")
+
+        self.mock_f1_set_information.assert_called_once_with(
+            ip_address="192.168.251.7/24",
+            port=2153,
+        )
+
+    def test_given_charm_is_active_when_config_changed_then_updated_f1_interface_ip_and_port_is_published(  # noqa: E501
+        self,
+    ):
+        test_statefulset = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=LabelSelector(),
+                serviceName="whatever",
+                template=PodTemplateSpec(
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=WORKLOAD_CONTAINER_NAME,
+                                securityContext=SecurityContext(privileged=True),
+                            )
+                        ]
+                    )
+                ),
+            )
+        )
+        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_check_output.return_value = b"1.1.1.1"
+        self.harness.add_storage("config", attach=True)
+        self.set_n2_relation_data()
+        f1_relation_id = self.harness.add_relation(relation_name="fiveg_f1", remote_app="du")
+        self.harness.add_relation_unit(relation_id=f1_relation_id, remote_unit_name="du/0")
+        self.harness.update_config(key_values={"f1-ip-address": "10.3.5.1/24", "f1-port": 3522})
+        self.harness.evaluate_status()
+        self.mock_f1_set_information.assert_has_calls(
+            [
+                call(ip_address="192.168.251.7/24", port=2153),
+                call(ip_address="10.3.5.1/24", port=3522),
+            ]
         )
 
     def create_n2_relation(self) -> int:
