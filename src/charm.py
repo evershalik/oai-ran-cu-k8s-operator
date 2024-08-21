@@ -252,15 +252,15 @@ class OAIRANCUOperator(CharmBase):
         """
         return [
             NetworkAnnotation(
-                name="n3-net",
+                name=f"{self._charm_config.n3_interface_name}-net",
                 interface=self._charm_config.n3_interface_name,
             ),
             NetworkAnnotation(
-                name="n2-net",
+                name=f"{self._charm_config.n2_interface_name}-net",
                 interface=self._charm_config.n2_interface_name,
             ),
             NetworkAnnotation(
-                name="f1-net",
+                name=f"{self._charm_config.f1_interface_name}-net",
                 interface=self._charm_config.f1_interface_name,
             ),
         ]
