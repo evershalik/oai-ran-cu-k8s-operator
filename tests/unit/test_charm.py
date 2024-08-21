@@ -470,7 +470,7 @@ class TestCharm:
         self.harness.add_relation_unit(relation_id=f1_relation_id, remote_unit_name="du/0")
 
         self.mock_f1_set_information.assert_called_once_with(
-            ip_address="192.168.251.7/24",
+            ip_address="192.168.251.7",
             port=2153,
         )
 
@@ -503,8 +503,8 @@ class TestCharm:
         self.harness.evaluate_status()
         self.mock_f1_set_information.assert_has_calls(
             [
-                call(ip_address="192.168.251.7/24", port=2153),
-                call(ip_address="10.3.5.1/24", port=3522),
+                call(ip_address="192.168.251.7", port=2153),
+                call(ip_address="10.3.5.1", port=3522),
             ]
         )
 

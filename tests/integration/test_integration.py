@@ -51,6 +51,12 @@ async def test_relate_and_wait_for_active_status(
     await ops_test.model.integrate(
         relation1=f"{APP_NAME}:logging", relation2=GRAFANA_AGENT_CHARM_NAME
     )
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME],
+        raise_on_error=False,
+        status="active",
+        timeout=TIMEOUT,
+    )
 
 
 @pytest.mark.abort_on_fail

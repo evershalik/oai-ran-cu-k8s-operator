@@ -64,7 +64,7 @@ config:
     f1-ip-address:
       type: string
       default: "192.168.251.7/24"
-      description: CU F1 interface IP Address in CIDR format
+      description: CU F1 interface IP Address
     f1-port:
       type: int
       default: 2153

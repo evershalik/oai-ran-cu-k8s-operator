@@ -353,11 +353,8 @@ class OAIRANCUOperator(CharmBase):
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Return list of Multus NetworkAttachmentDefinitions to be created based on config."""
-        # Get n3 NAD config
         n3_nad_config = self._get_n3_nad_config()
-        # Get f1 NAD config
         f1_nad_config = self._get_f1_nad_config()
-        # Get n2 NAD config
         n2_nad_config = self._get_n2_nad_config()
         return [
             NetworkAttachmentDefinition(
@@ -447,7 +444,9 @@ class OAIRANCUOperator(CharmBase):
         if not (f1_ip := self._charm_config.f1_ip_address):
             logger.error("F1 IP address is not available")
             return
-        self._f1_provider.set_f1_information(ip_address=f1_ip, port=self._charm_config.f1_port)
+        self._f1_provider.set_f1_information(
+            ip_address=f1_ip.split("/")[0], port=self._charm_config.f1_port
+        )
 
     @property
     def _gnb_name(self) -> str:
