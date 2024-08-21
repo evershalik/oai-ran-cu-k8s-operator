@@ -474,6 +474,23 @@ class TestCharm:
             port=2153,
         )
 
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_nads_created_for_the_provided_interfaces(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "n3-interface-name": "dummy-n3",
+                "f1-interface-name": "dummy-f1",
+                "n2-interface-name": "dummy-n2",
+            }
+        )
+        self.harness.evaluate_status()
+        nad = self.harness.charm._network_attachment_definitions_from_config()
+        assert nad[0].metadata.name == "dummy-n3-net"  # type: ignore
+        assert nad[1].metadata.name == "dummy-f1-net"  # type: ignore
+        assert nad[2].metadata.name == "dummy-n2-net"  # type: ignore
+
     def test_given_charm_is_active_when_config_changed_then_updated_f1_interface_ip_and_port_is_published(  # noqa: E501
         self,
     ):
