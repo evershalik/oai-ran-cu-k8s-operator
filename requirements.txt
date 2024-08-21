@@ -72,8 +72,6 @@ sniffio==1.3.1
     #   httpx
 tenacity==9.0.0
     # via cosl
-tomli==2.0.1
-    # via pytest
 typer==0.7.0
     # via pytest-interface-tester
 typing-extensions==4.12.2
