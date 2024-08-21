@@ -41,8 +41,6 @@ class CNIType(str, Enum):
 
     bridge = "bridge"
     macvlan = "macvlan"
-    host_device = "host-device"
-    vfioveth = "vfioveth"
 
 
 def to_kebab(name: str) -> str:

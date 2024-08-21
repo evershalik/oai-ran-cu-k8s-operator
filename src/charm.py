@@ -87,6 +87,7 @@ class OAIRANCUOperator(CharmBase):
             network_annotations_func=self._generate_network_annotations,
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
             refresh_event=self.on.nad_config_changed,
+            privileged=True,
         )
         self._service_patcher = KubernetesServicePatch(
             charm=self,
@@ -134,6 +135,10 @@ class OAIRANCUOperator(CharmBase):
             event.add_status(BlockedStatus("Multus is not installed or enabled"))
             logger.info("Multus is not installed or enabled")
             return
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            logger.info("Waiting for Multus to be ready")
+            return
         if not self._relation_created(N2_RELATION_NAME):
             event.add_status(BlockedStatus("Waiting for N2 relation to be created"))
             logger.info("Waiting for N2 relation to be created")
@@ -151,10 +156,6 @@ class OAIRANCUOperator(CharmBase):
             logger.info("Waiting for statefulset to be patched")
             return
         self.unit.set_workload_version(self._get_workload_version())
-        if not self._kubernetes_multus.is_ready():
-            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
-            logger.info("Waiting for Multus to be ready")
-            return
         if not self._container.exists(path=BASE_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")

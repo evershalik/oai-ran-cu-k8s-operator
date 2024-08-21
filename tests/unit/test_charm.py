@@ -125,7 +125,7 @@ class TestCharm:
         assert config_n2["type"] == "macvlan"
         assert config_n2["master"] == "core"
 
-    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_interfaces_type_are_bridge(  # noqa: E501
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_interfaces_types_are_bridge(  # noqa: E501
         self,
     ):
         self.harness.disable_hooks()
