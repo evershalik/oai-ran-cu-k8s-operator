@@ -61,7 +61,7 @@ class CUConfig(BaseModel):  # pylint: disable=too-few-public-methods
     n3_interface_name: StrictStr = Field(default="n3", min_length=1)
     n3_ip_address: str = Field(default="192.168.251.6/24")
     n3_gateway_ip: IPv4Address = Field(default=None)
-    n3_subnet: IPvAnyNetwork = Field(default=None)
+    upf_subnet: IPvAnyNetwork = Field(default=None)
     mcc: StrictStr = Field(pattern=r"^\d{3}$")
     mnc: StrictStr = Field(pattern=r"^\d{2}$")
     sst: int = Field(ge=1, le=4)
@@ -88,7 +88,7 @@ class CharmConfig:
         n2_ip_address: IP address used by n2 interface
         n3_interface_name: Name of the network interface used for N3 traffic
         n3_ip_address: IP address used by n3 interface
-        n3_subnet: Subnet for UPF network
+        upf_subnet: Subnet for UPF n3 interface
         n3_gateway_ip: Gateway IP address to the UPF Network.
         mcc: Mobile Country Code
         mnc: Mobile Network code
@@ -104,7 +104,7 @@ class CharmConfig:
     n2_ip_address: str
     n3_interface_name: StrictStr
     n3_ip_address: str
-    n3_subnet: IPvAnyNetwork
+    upf_subnet: IPvAnyNetwork
     n3_gateway_ip: IPv4Address
     mcc: StrictStr
     mnc: StrictStr
@@ -125,7 +125,7 @@ class CharmConfig:
         self.n2_ip_address = cu_config.n2_ip_address
         self.n3_interface_name = cu_config.n3_interface_name
         self.n3_ip_address = cu_config.n3_ip_address
-        self.n3_subnet = cu_config.n3_subnet
+        self.upf_subnet = cu_config.upf_subnet
         self.n3_gateway_ip = cu_config.n3_gateway_ip
         self.mcc = cu_config.mcc
         self.mnc = cu_config.mnc

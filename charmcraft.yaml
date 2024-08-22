@@ -92,10 +92,10 @@ config:
     n3-gateway-ip:
       type: string
       description: |
-        Gateway IP to the UPF Access Network. This should be provided, if a route is required to UPF access network subnet.
-    n3-subnet:
+        Gateway IP to the UPF's N3 interface. This should be provided, if a route is required to UPF's N3 interface.
+    upf-subnet:
       type: string
-      description: UPF access network subnet
+      description: UPF's N3 interface subnet.This should be provided, if a route is required to UPF's N3 interface.
     mcc:
       type: string
       default: "001"

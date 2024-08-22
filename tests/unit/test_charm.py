@@ -145,14 +145,14 @@ class TestCharm:
         config_n2 = json.loads(nad[0].spec["config"])
         assert config_n2["type"] == "bridge"
 
-    def test_given_n3_subnet_and_gw_provided_when_network_attachment_definitions_from_config_is_called_then_route_is_created(  # noqa: E501
+    def test_given_upf_subnet_and_n3_gw_provided_when_network_attachment_definitions_from_config_is_called_then_route_is_created(  # noqa: E501
         self,
     ):
         self.harness.disable_hooks()
         self.harness.update_config(
             key_values={
                 "n3-gateway-ip": "192.168.1.12",
-                "n3-subnet": "172.10.0.0/24",
+                "upf-subnet": "172.10.0.0/24",
             }
         )
         self.harness.evaluate_status()
