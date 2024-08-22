@@ -6,14 +6,20 @@
 
 import dataclasses
 import logging
+from enum import Enum
+from ipaddress import IPv4Address, ip_network
 
 import ops
 from pydantic import (  # pylint: disable=no-name-in-module,import-error
     BaseModel,
+    ConfigDict,
     Field,
     StrictStr,
     ValidationError,
+    field_validator,
 )
+from pydantic.networks import IPvAnyNetwork
+from pydantic_core.core_schema import ValidationInfo
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +36,13 @@ class CharmConfigInvalidError(Exception):
         self.msg = msg
 
 
+class CNIType(str, Enum):
+    """Class to define available CNI types for CU operator."""
+
+    bridge = "bridge"
+    macvlan = "macvlan"
+
+
 def to_kebab(name: str) -> str:
     """Convert a snake_case string to kebab-case."""
     return name.replace("_", "-")
@@ -38,19 +51,28 @@ def to_kebab(name: str) -> str:
 class CUConfig(BaseModel):  # pylint: disable=too-few-public-methods
     """Represent the OAI RAN CU operator builtin configuration values."""
 
-    class Config:
-        """Represent config for Pydantic model."""
-
-        alias_generator = to_kebab
-
-    f1_interface_name: StrictStr = Field(min_length=1)
+    model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
+    cni_type: CNIType = CNIType.bridge
+    f1_interface_name: StrictStr = Field(default="f1", min_length=1)
+    f1_ip_address: str = Field(default="192.168.251.7/24")
     f1_port: int = Field(ge=1, le=65535)
-    n2_interface_name: StrictStr = Field(min_length=1)
-    n3_interface_name: StrictStr = Field(min_length=1)
+    n2_interface_name: StrictStr = Field(default="n2", min_length=1)
+    n2_ip_address: str = Field(default="192.168.250.6/24")
+    n3_interface_name: StrictStr = Field(default="n3", min_length=1)
+    n3_ip_address: str = Field(default="192.168.251.6/24")
+    n3_gateway_ip: IPv4Address = Field(default=None)
+    upf_subnet: IPvAnyNetwork = Field(default=None)
     mcc: StrictStr = Field(pattern=r"^\d{3}$")
     mnc: StrictStr = Field(pattern=r"^\d{2}$")
     sst: int = Field(ge=1, le=4)
     tac: int = Field(ge=1, le=16777215)
+
+    @field_validator("f1_ip_address", "n2_ip_address", "n3_ip_address", mode="before")
+    @classmethod
+    def validate_ip_network_address(cls, value: str, info: ValidationInfo) -> str:
+        """Validate that IP network address is valid."""
+        ip_network(value, strict=False)
+        return value
 
 
 @dataclasses.dataclass
@@ -58,20 +80,32 @@ class CharmConfig:
     """Represents the state of the OAI RAN CU operator charm.
 
     Attributes:
+        cni_type: Multus CNI plugin to use for the interfaces.
         f1_interface_name: Name of the network interface used for F1 traffic
+        f1_ip_address: IP address used by f1 interface
         f1_port: Number of the port used for F1 traffic
         n2_interface_name: Name of the network interface used for N2 traffic
+        n2_ip_address: IP address used by n2 interface
         n3_interface_name: Name of the network interface used for N3 traffic
+        n3_ip_address: IP address used by n3 interface
+        upf_subnet: Subnet for UPF n3 interface
+        n3_gateway_ip: Gateway IP address to the UPF Network.
         mcc: Mobile Country Code
         mnc: Mobile Network code
         sst: Slice Service Type
         tac: Tracking Area Code
     """
 
+    cni_type: CNIType
     f1_interface_name: StrictStr
+    f1_ip_address: str
     f1_port: int
     n2_interface_name: StrictStr
+    n2_ip_address: str
     n3_interface_name: StrictStr
+    n3_ip_address: str
+    upf_subnet: IPvAnyNetwork
+    n3_gateway_ip: IPv4Address
     mcc: StrictStr
     mnc: StrictStr
     sst: int
@@ -83,10 +117,16 @@ class CharmConfig:
         Args:
             cu_config: OAI RAN CU operator configuration.
         """
+        self.cni_type = cu_config.cni_type
         self.f1_interface_name = cu_config.f1_interface_name
+        self.f1_ip_address = cu_config.f1_ip_address
         self.f1_port = cu_config.f1_port
         self.n2_interface_name = cu_config.n2_interface_name
+        self.n2_ip_address = cu_config.n2_ip_address
         self.n3_interface_name = cu_config.n3_interface_name
+        self.n3_ip_address = cu_config.n3_ip_address
+        self.upf_subnet = cu_config.upf_subnet
+        self.n3_gateway_ip = cu_config.n3_gateway_ip
         self.mcc = cu_config.mcc
         self.mnc = cu_config.mnc
         self.sst = cu_config.sst
