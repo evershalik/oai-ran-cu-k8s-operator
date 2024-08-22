@@ -266,17 +266,22 @@ class OAIRANCUOperator(CharmBase):
         ]
 
     @staticmethod
-    def _get_base_config() -> dict:
+    def _get_base_config(address: str) -> dict:
         return {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
+                "addresses": [
+                    {
+                        "address": address,
+                    }
+                ],
                 "capabilities": {"mac": True},
             },
         }
 
     def _get_n3_nad_config(self) -> dict:
-        n3_nad_config = self._get_base_config()
+        n3_nad_config = self._get_base_config(self._charm_config.n3_ip_address)
         if self._charm_config.upf_subnet and self._charm_config.n3_gateway_ip:
             n3_nad_config.update(
                 {
@@ -290,52 +295,39 @@ class OAIRANCUOperator(CharmBase):
             )
         return self._add_cni_type_to_nad_config(
             n3_nad_config,
-            self._charm_config.n3_ip_address,
             self._charm_config.n3_interface_name,
             "n3-br",
         )
 
     def _get_f1_nad_config(self) -> dict:
-        f1_nad_config = self._get_base_config()
+        f1_nad_config = self._get_base_config(self._charm_config.f1_ip_address)
         return self._add_cni_type_to_nad_config(
             f1_nad_config,
-            self._charm_config.f1_ip_address,
             self._charm_config.f1_interface_name,
             "f1-br",
         )
 
-    def _add_cni_type_to_nad_config(
-        self, nad_config: dict, address: str, master_interface: str, bridge: str
-    ) -> dict:
-        nad_config.update(
-            {
-                "addresses": [
-                    {
-                        "address": address,
-                    }
-                ],
-            }
+    def _get_n2_nad_config(self) -> dict:
+        n2_nad_config = self._get_base_config(self._charm_config.n2_ip_address)
+        return self._add_cni_type_to_nad_config(
+            n2_nad_config,
+            self._charm_config.n2_interface_name,
+            "n2-br",
         )
-        cni_type = self._charm_config.cni_type
-        if cni_type == CNIType.macvlan:
+
+    def _add_cni_type_to_nad_config(
+        self, nad_config: dict, master_interface: str, bridge: str
+    ) -> dict:
+        if self._charm_config.cni_type == CNIType.macvlan:
             nad_config.update(
                 {
                     "type": "macvlan",
                     "master": master_interface,
                 }
             )
-        elif cni_type == CNIType.bridge:
+        elif self._charm_config.cni_type == CNIType.bridge:
             nad_config.update({"type": "bridge", "bridge": bridge})
         return nad_config
-
-    def _get_n2_nad_config(self) -> dict:
-        n2_nad_config = self._get_base_config()
-        return self._add_cni_type_to_nad_config(
-            n2_nad_config,
-            self._charm_config.n2_ip_address,
-            self._charm_config.n2_interface_name,
-            "n2-br",
-        )
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Return list of Multus NetworkAttachmentDefinitions to be created based on config."""

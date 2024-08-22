@@ -74,7 +74,7 @@ config:
       default: "n2"
       description: |
         Name of the network interface handling communication over the N2 interface.
-        Host interface to use for the Core Network. If not specified, a bridge will be used.
+        If not specified, a bridge will be used.
     n2-ip-address:
       type: string
       default: "192.168.250.6/24"
@@ -84,7 +84,7 @@ config:
       default: "n3"
       description: | 
         Name of the network interface handling communication over the N3 interface. 
-        Host interface to use for the RAN Network. If not specified, a bridge will be used.
+        If not specified, a bridge will be used.
     n3-ip-address:
       type: string
       default: "192.168.251.6/24"
@@ -92,10 +92,10 @@ config:
     n3-gateway-ip:
       type: string
       description: |
-        Gateway IP to the UPF's N3 interface. This should be provided, if a route is required to UPF's N3 interface.
+        Gateway IP to the UPF's N3 interface. This should be provided if a route is required to UPF's N3 interface.
     upf-subnet:
       type: string
-      description: UPF's N3 interface subnet.This should be provided, if a route is required to UPF's N3 interface.
+      description: UPF's N3 interface subnet. This should be provided if a route is required to UPF's N3 interface.
     mcc:
       type: string
       default: "001"
