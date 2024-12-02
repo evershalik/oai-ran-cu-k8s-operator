@@ -16,7 +16,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (
     NetworkAttachmentDefinition,
 )
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
-from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides
+from charms.oai_ran_cu_k8s.v0.fiveg_f1 import F1Provides, PLMNConfig
 from charms.sdcore_amf_k8s.v0.fiveg_n2 import N2Requires
 from charms.sdcore_gnbsim_k8s.v0.fiveg_gnb_identity import (
     GnbIdentityProvides,
@@ -40,6 +40,8 @@ GNB_IDENTITY_RELATION_NAME = "fiveg_gnb_identity"
 DU_F1_DEFAULT_PORT = 2152
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 LOGGING_RELATION_NAME = "logging"
+HARDCODED_PLMNS = [PLMNConfig(mcc="001", mnc="01", sst=1, sd=12)]
+HARDCODED_TAC = 1
 
 
 class OAIRANCUOperator(CharmBase):
@@ -79,8 +81,8 @@ class OAIRANCUOperator(CharmBase):
         self.framework.observe(self.on.cu_pebble_ready, self._configure)
         self.framework.observe(self.on.fiveg_n2_relation_joined, self._configure)
         self.framework.observe(self._n2_requirer.on.n2_information_available, self._configure)
-        self.framework.observe(self._f1_provider.on.fiveg_f1_request, self._configure)
-        self.framework.observe(self._f1_provider.on.fiveg_f1_requirer_available, self._configure)
+        self.framework.observe(self.on[F1_RELATION_NAME].relation_joined, self._configure)
+        self.framework.observe(self.on[F1_RELATION_NAME].relation_changed, self._configure)
         self.framework.observe(
             self._gnb_identity_provider.on.fiveg_gnb_identity_request,
             self._configure,
@@ -407,7 +409,10 @@ class OAIRANCUOperator(CharmBase):
             logger.error("F1 IP address is not available")
             return
         self._f1_provider.set_f1_information(
-            ip_address=f1_ip.split("/")[0], port=self._charm_config.f1_port
+            ip_address=f1_ip.split("/")[0],
+            port=self._charm_config.f1_port,
+            tac=HARDCODED_TAC,
+            plmns=HARDCODED_PLMNS,
         )
 
     def _exec_command_in_workload_container(
