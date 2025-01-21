@@ -15,7 +15,6 @@ on:
         description: Name of the charmhub track to publish
         options:
           - '2.1'
-          - '2.2'
           - latest
 
 
