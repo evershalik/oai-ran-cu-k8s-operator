@@ -1,0 +1,84 @@
+Active_gNBs = ( "{{ gnb_name }}" );
+Asn1_verbosity = "none";
+Num_Threads_PUSCH = 8;
+
+gNBs =
+(
+    {
+        gNB_ID   = 0xe00;
+        gNB_name =  "{{ gnb_name }}";
+
+        tracking_area_code  = {{ tac }};
+        plmn_list =
+        (
+            {% for plmn in plmn_list -%}
+            {
+                mcc = {{ plmn.mcc }};
+                mnc = {{ plmn.mnc }};
+                mnc_length = 2;
+                snssaiList =
+                (
+                    {
+                        sst = {{ plmn.sst }};
+                        {%- if plmn.sd is not none %}
+                        sd  = 0x{{ "%06x" | format(plmn.sd) }};
+                        {%- endif %}
+                    }
+                );
+            }
+            {%- if not loop.last %},
+            {% endif %}
+            {%- endfor %}
+        );
+        nr_cellid        = 12345678L;
+        tr_s_preference  = "f1";
+        local_s_if_name  = "{{ cu_f1_interface_name }}";
+        local_s_address  = "{{ cu_f1_ip_address }}";
+        remote_s_address = "127.0.0.1";
+        local_s_portc    = 501;
+        local_s_portd    = {{ cu_f1_port }};
+        remote_s_portc   = 500;
+        remote_s_portd   = {{ du_f1_port }};
+
+        SCTP :
+        {
+          SCTP_INSTREAMS  = 2;
+          SCTP_OUTSTREAMS = 2;
+        };
+
+        amf_ip_address =
+        (
+            {
+                ipv4       = "{{ amf_external_address }}";
+                ipv6       = "192:168:30::17";
+                active     = "yes";
+                preference = "ipv4";
+            }
+        );
+
+        NETWORK_INTERFACES :
+        {
+            GNB_INTERFACE_NAME_FOR_NG_AMF = "eth0";
+            GNB_IPV4_ADDRESS_FOR_NG_AMF   = "{{ cu_n2_ip_address }}";
+            GNB_INTERFACE_NAME_FOR_NGU    = "{{ cu_n3_interface_name }}";
+            GNB_IPV4_ADDRESS_FOR_NGU      = "{{ cu_n3_ip_address }}";
+            GNB_PORT_FOR_S1U              = 2152;
+        };
+    }
+);
+
+security = {
+    ciphering_algorithms = ( "nea0" );
+    integrity_algorithms = ( "nia2", "nia0" );
+    drb_ciphering        = "yes";
+    drb_integrity        = "no";
+};
+
+log_config : {
+    global_log_options = "level,nocolor,time";
+    global_log_level   = "info";
+    pdcp_log_level     = "info";
+    rrc_log_level      = "info";
+    f1ap_log_level     = "info";
+    ngap_log_level     = "info";
+};

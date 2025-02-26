@@ -1,0 +1,202 @@
+diff --git a/charmcraft.yaml b/charmcraft.yaml
+index 0ade0d4..67ee41b 100644
+--- a/charmcraft.yaml
++++ b/charmcraft.yaml
+@@ -1,9 +1,9 @@
+ type: charm
+-name: oai-ran-cu-k8s
++name: cu
+ summary: Charmed Operator for the OAI RAN Central Unit (CU).
+ description: Charmed Operator for the OAI RAN Central Unit (CU).
+-base: ubuntu@24.04
+-build-base: ubuntu@24.04
++base: ubuntu@22.04
++build-base: ubuntu@22.04
+ platforms:
+   amd64:
+ 
+@@ -31,7 +31,7 @@ resources:
+   cu-image:
+     type: oci-image
+     description: Container image for the OAI RAN Central Unit (CU).
+-    upstream-source: ghcr.io/canonical/oai-ran-cu:2.2.0
++    upstream-source: docker.io/shivank1128/oai-cu:legacy
+ 
+ provides:
+   fiveg_f1:
+diff --git a/src/charm.py b/src/charm.py
+index 59f4b09..2b46b2d 100755
+--- a/src/charm.py
++++ b/src/charm.py
+@@ -454,7 +454,7 @@ class OAIRANCUOperator(CharmBase):
+                     self._service_name: {
+                         "override": "replace",
+                         "startup": "enabled",
+-                        "command": f"/opt/oai-gnb/bin/nr-softmodem -O {BASE_CONFIG_PATH}/{CONFIG_FILE_NAME} --sa",  # noqa: E501
++                        "command": f"/opt/oai-cu/bin/oai_cu_7.2x -O {BASE_CONFIG_PATH}/{CONFIG_FILE_NAME} --sa",  # noqa: E501
+                         "environment": self._cu_environment_variables,
+                     },
+                 },
+diff --git a/src/templates/cu.conf.j2 b/src/templates/cu.conf.j2
+index e32b359..f9815aa 100644
+--- a/src/templates/cu.conf.j2
++++ b/src/templates/cu.conf.j2
+@@ -1,15 +1,20 @@
+-Active_gNBs = ( "{{ gnb_name }}" );
++Active_gNBs = ( "{{ gnb_name }}");
+ Asn1_verbosity = "none";
+ Num_Threads_PUSCH = 8;
+ 
+ gNBs =
+ (
+-    {
+-        gNB_ID   = 0xe00;
+-        gNB_name =  "{{ gnb_name }}";
++ {
++    ////////// Identification parameters:
++    gNB_ID = 0xe00;
++
++#     cell_type =  "CELL_MACRO_GNB";
+ 
+-        tracking_area_code  = {{ tac }};
+-        plmn_list =
++    gNB_name  =  "{{ gnb_name }}";
++
++    // Tracking area code, 0x0000 and 0xfffe are reserved values
++    tracking_area_code  =  {{ tac }};
++    plmn_list =
+         (
+             {% for plmn in plmn_list -%}
+             {
+@@ -30,55 +35,73 @@ gNBs =
+             {% endif %}
+             {%- endfor %}
+         );
+-        nr_cellid        = 12345678L;
+-        tr_s_preference  = "f1";
+-        local_s_if_name  = "{{ cu_f1_interface_name }}";
+-        local_s_address  = "{{ cu_f1_ip_address }}";
+-        remote_s_address = "127.0.0.1";
+-        local_s_portc    = 501;
+-        local_s_portd    = {{ cu_f1_port }};
+-        remote_s_portc   = 500;
+-        remote_s_portd   = {{ du_f1_port }};
+ 
+-        SCTP :
+-        {
+-          SCTP_INSTREAMS  = 2;
+-          SCTP_OUTSTREAMS = 2;
+-        };
++    nr_cellid = 12345678L;
+ 
+-        amf_ip_address =
+-        (
+-            {
+-                ipv4       = "{{ amf_external_address }}";
+-                ipv6       = "192:168:30::17";
+-                active     = "yes";
+-                preference = "ipv4";
+-            }
+-        );
++    tr_s_preference = "f1";
++
++    local_s_if_name = "{{ cu_f1_interface_name }}";
++    local_s_address = "{{ cu_f1_ip_address }}";
++    remote_s_address = "127.0.0.3";
++    local_s_portc   = 501;
++    local_s_portd   = {{ cu_f1_port }};
++    remote_s_portc  = 500;
++    remote_s_portd  = {{ du_f1_port }};
+ 
+-        NETWORK_INTERFACES :
+-        {
+-            GNB_INTERFACE_NAME_FOR_NG_AMF = "eth0";
+-            GNB_IPV4_ADDRESS_FOR_NG_AMF   = "{{ cu_n2_ip_address }}";
+-            GNB_INTERFACE_NAME_FOR_NGU    = "{{ cu_n3_interface_name }}";
+-            GNB_IPV4_ADDRESS_FOR_NGU      = "{{ cu_n3_ip_address }}";
+-            GNB_PORT_FOR_S1U              = 2152;
+-        };
+-    }
++    # ------- SCTP definitions
++    SCTP :
++    {
++        # Number of streams to use in input/output
++        SCTP_INSTREAMS  = 2;
++        SCTP_OUTSTREAMS = 2;
++    };
++
++
++    ////////// AMF parameters:
++        amf_ip_address      = ( { ipv4       = "{{ amf_external_address }}";
++                              ipv6       = "192:168:30::17";
++                              active     = "yes";
++                              preference = "ipv4";
++                            }
++                          );
++
++    NETWORK_INTERFACES :
++    {
++
++        GNB_INTERFACE_NAME_FOR_NG_AMF            = "eth0";
++        GNB_IPV4_ADDRESS_FOR_NG_AMF              = "{{ cu_n2_ip_address }}";
++        GNB_INTERFACE_NAME_FOR_NGU               = "{{ cu_n3_interface_name }}";
++        GNB_IPV4_ADDRESS_FOR_NGU                 = "{{ cu_n3_ip_address }}";
++        GNB_PORT_FOR_S1U                         = 2152; # Spec 2152
++    };
++  }
+ );
+ 
+ security = {
+-    ciphering_algorithms = ( "nea0" );
+-    integrity_algorithms = ( "nia2", "nia0" );
+-    drb_ciphering        = "yes";
+-    drb_integrity        = "no";
+-};
++  # preferred ciphering algorithms
++  # the first one of the list that an UE supports in chosen
++  # valid values: nea0, nea1, nea2, nea3
++  ciphering_algorithms = ( "nea0" );
++
++  # preferred integrity algorithms
++  # the first one of the list that an UE supports in chosen
++  # valid values: nia0, nia1, nia2, nia3
++  integrity_algorithms = ( "nia2", "nia0" );
+ 
+-log_config : {
+-    global_log_options = "level,nocolor,time";
+-    global_log_level   = "info";
+-    pdcp_log_level     = "info";
+-    rrc_log_level      = "info";
+-    f1ap_log_level     = "info";
+-    ngap_log_level     = "info";
++  # setting 'drb_ciphering' to "no" disables ciphering for DRBs, no matter
++  # what 'ciphering_algorithms' configures; same thing for 'drb_integrity'
++  drb_ciphering = "yes";
++  drb_integrity = "no";
+ };
++     log_config :
++     {
++       global_log_level                      ="info";
++       hw_log_level                          ="info";
++       phy_log_level                         ="info";
++       mac_log_level                         ="info";
++       rlc_log_level                         ="debug";
++       pdcp_log_level                        ="info";
++       rrc_log_level                         ="info";
++       f1ap_log_level                         ="debug";
++       ngap_log_level                         ="debug";
++    };
+\ No newline at end of file
+diff --git a/tests/unit/test_charm_configure.py b/tests/unit/test_charm_configure.py
+index fcd029c..2d8600a 100644
+--- a/tests/unit/test_charm_configure.py
++++ b/tests/unit/test_charm_configure.py
+@@ -272,7 +272,7 @@ class TestCharmConfigure(CUCharmFixtures):
+                         "cu": {
+                             "startup": "enabled",
+                             "override": "replace",
+-                            "command": "/opt/oai-gnb/bin/nr-softmodem -O /tmp/conf/cu.conf --sa",
++                            "command": "/opt/oai-cu/bin/oai_cu_7.2x -O /tmp/conf/cu.conf --sa",
+                             "environment": {"OAI_GDBSTACKS": "1", "TZ": "UTC"},
+                         }
+                     }

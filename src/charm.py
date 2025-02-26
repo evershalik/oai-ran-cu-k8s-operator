@@ -454,7 +454,7 @@ class OAIRANCUOperator(CharmBase):
                     self._service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": f"/opt/oai-gnb/bin/nr-softmodem -O {BASE_CONFIG_PATH}/{CONFIG_FILE_NAME} --sa",  # noqa: E501
+                        "command": f"/opt/oai-cu/bin/oai_cu_7.2x -O {BASE_CONFIG_PATH}/{CONFIG_FILE_NAME} --sa",  # noqa: E501
                         "environment": self._cu_environment_variables,
                     },
                 },

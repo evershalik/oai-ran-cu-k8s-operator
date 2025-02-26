@@ -272,7 +272,7 @@ class TestCharmConfigure(CUCharmFixtures):
                         "cu": {
                             "startup": "enabled",
                             "override": "replace",
-                            "command": "/opt/oai-gnb/bin/nr-softmodem -O /tmp/conf/cu.conf --sa",
+                            "command": "/opt/oai-cu/bin/oai_cu_7.2x -O /tmp/conf/cu.conf --sa",
                             "environment": {"OAI_GDBSTACKS": "1", "TZ": "UTC"},
                         }
                     }
